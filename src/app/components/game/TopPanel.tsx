@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react"
-import { Menu, Music, MusicOff, Volume2, VolumeX } from "lucide-react"
+import { Menu, Music, Music2, Volume2, VolumeOff } from "lucide-react"
 import { useAudio } from "../../features/game/AudioContext"
 
 interface TopPanelProps {
@@ -60,7 +60,7 @@ export default function TopPanel({ onRestart, onNewGame }: TopPanelProps) {
               >
                 {musicEnabled
                   ? <Music className="w-4 h-4 flex-shrink-0" />
-                  : <MusicOff className="w-4 h-4 flex-shrink-0" />
+                  : <Music2 className="w-4 h-4 flex-shrink-0" />
                 }
                 <span>Music {musicEnabled ? 'On' : 'Off'}</span>
               </button>
@@ -73,7 +73,7 @@ export default function TopPanel({ onRestart, onNewGame }: TopPanelProps) {
               >
                 {sfxEnabled
                   ? <Volume2 className="w-4 h-4 flex-shrink-0" />
-                  : <VolumeX className="w-4 h-4 flex-shrink-0" />
+                  : <VolumeOff className="w-4 h-4 flex-shrink-0" />
                 }
                 <span>SFX {sfxEnabled ? 'On' : 'Off'}</span>
               </button>
