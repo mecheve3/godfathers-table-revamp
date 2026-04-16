@@ -1,0 +1,43 @@
+@import './fonts.css';
+@import './tailwind.css';
+@import './theme.css';
+
+/* ── Game board seat animations ────────────────────────────────────────────── */
+@keyframes seat-blink-danger {
+  0%,  100% { opacity: 1;    filter: drop-shadow(0 0 4px  rgb(239 68 68 / 1));   }
+  37.5%, 62.5% { opacity: 0.2; filter: drop-shadow(0 0 14px rgb(239 68 68 / 0.8)); }
+}
+@keyframes seat-blink-neutral {
+  0%,  100% { opacity: 1;    filter: drop-shadow(0 0 4px  rgb(96 165 250 / 1));   }
+  37.5%, 62.5% { opacity: 0.2; filter: drop-shadow(0 0 14px rgb(96 165 250 / 0.8)); }
+}
+@keyframes seat-blink-utility {
+  0%,  100% { opacity: 1;    filter: drop-shadow(0 0 4px  rgb(250 204 21 / 1));   }
+  37.5%, 62.5% { opacity: 0.2; filter: drop-shadow(0 0 14px rgb(250 204 21 / 0.8)); }
+}
+@keyframes seat-blink-money {
+  0%,  100% { opacity: 1;    filter: drop-shadow(0 0 4px  rgb(34 197 94 / 1));   }
+  37.5%, 62.5% { opacity: 0.2; filter: drop-shadow(0 0 14px rgb(34 197 94 / 0.8)); }
+}
+@keyframes seat-blink-sleep {
+  0%,  100% { opacity: 1;    filter: drop-shadow(0 0 4px  rgb(167 139 250 / 1));   }
+  37.5%, 62.5% { opacity: 0.2; filter: drop-shadow(0 0 14px rgb(167 139 250 / 0.8)); }
+}
+.seat-anim-danger  { animation: seat-blink-danger  320ms ease-in-out 3; }
+.seat-anim-neutral { animation: seat-blink-neutral 320ms ease-in-out 3; }
+.seat-anim-utility { animation: seat-blink-utility 320ms ease-in-out 3; }
+.seat-anim-money   { animation: seat-blink-money   320ms ease-in-out 3; }
+.seat-anim-sleep   { animation: seat-blink-sleep   320ms ease-in-out 3; }
+
+@keyframes police-raid-flash {
+  0%   { opacity: 0;    }
+  12%  { opacity: 0.45; }
+  28%  { opacity: 0.08; }
+  48%  { opacity: 0.35; }
+  64%  { opacity: 0.05; }
+  80%  { opacity: 0.2;  }
+  100% { opacity: 0;    }
+}
+.police-raid-overlay {
+  animation: police-raid-flash 1.8s ease-in-out forwards;
+}

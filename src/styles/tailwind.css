@@ -1,0 +1,25 @@
+@import 'tailwindcss' source(none);
+@source '../**/*.{js,ts,jsx,tsx}';
+
+@import 'tw-animate-css';
+
+/* ── Game design tokens → Tailwind utilities ────────────────── */
+@theme inline {
+  --color-game-bg:           var(--game-bg);
+  --color-game-bg-mid:       var(--game-bg-mid);
+  --color-game-bg-alt:       var(--game-bg-alt);
+  --color-game-panel:        var(--game-panel);
+  --color-game-panel-hover:  var(--game-panel-hover);
+  --color-game-panel-active: var(--game-panel-active);
+  --color-game-border:       var(--game-border);
+  --color-game-border-hi:    var(--game-border-hi);
+  --color-game-gold:         var(--game-gold);
+  --color-game-gold-dim:     var(--game-gold-dim);
+  --color-game-red:          var(--game-red);
+  --color-game-text:         var(--game-text);
+  --color-game-text-muted:   var(--game-text-muted);
+  /* legacy */
+  --color-game-surface:        var(--game-surface);
+  --color-game-surface-hover:  var(--game-surface-hover);
+  --color-game-surface-active: var(--game-surface-active);
+}
