@@ -63,7 +63,7 @@ export default function BottomPanel({
   )
 
   return (
-    <div className="bg-gradient-to-b from-[#3D2314] to-[#2B1710] border-t border-zinc-700 w-full sticky bottom-0 z-10 py-3 px-4">
+    <div className="bg-gradient-to-b from-[#3D2314] to-[#2B1710] border-t border-zinc-700 w-full flex-shrink-0 py-3 px-4">
       <div className="flex flex-col md:flex-row gap-4 justify-between">
         {/* Left — hand + discard */}
         <div className="flex flex-row items-center gap-2">

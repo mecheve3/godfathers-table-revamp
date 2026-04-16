@@ -773,21 +773,28 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   const selectedCard = selectedCardId ? gameState.players[currentPlayerIndex].hand.find((c) => c.id === selectedCardId) || null : null
   const selectedCake = gameState.selectedCakeId ? gameState.cakes.find((c) => c.id === gameState.selectedCakeId) || null : null
 
+  // Lock body scroll while game is active
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    return () => { document.body.style.overflow = prev }
+  }, [])
+
   return (
-    <div className="flex flex-col min-h-screen bg-gradient-to-b from-[#2B1710] to-[#3D2314]">
+    <div className="h-screen overflow-hidden flex flex-col bg-gradient-to-b from-[#2B1710] to-[#3D2314]">
       {policeRaidActive && (
         <div className="fixed inset-0 pointer-events-none police-raid-overlay" style={{ background: "linear-gradient(135deg, rgba(239,68,68,0.35), rgba(59,130,246,0.35))", zIndex: 9999 }} />
       )}
 
-      <div className="flex flex-row min-h-screen">
-        <div className="flex flex-col flex-grow">
+      <div className="flex flex-row flex-1 min-h-0 overflow-hidden">
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
           <TopPanel onRestart={restartGame} onNewGame={onReturnToHome} />
 
-          <div className="flex flex-col flex-grow">
-            <div className="flex flex-col lg:flex-row flex-grow">
+          <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+            <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-hidden">
               {/* Game Board */}
-              <div className="lg:w-[75%]">
-                <div className="bg-gradient-to-b from-[#3D2314] to-[#2B1710] rounded-lg">
+              <div className="lg:w-[75%] flex flex-col min-h-0 overflow-hidden">
+                <div className="flex-1 min-h-0 bg-gradient-to-b from-[#3D2314] to-[#2B1710] rounded-lg flex items-center overflow-hidden">
                   <div
                     className="relative w-full aspect-[100/50] rounded-lg overflow-hidden"
                     style={{
@@ -825,7 +832,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
               </div>
 
               {/* Right Panel */}
-              <div className="lg:w-[25%] flex flex-col">
+              <div className="lg:w-[25%] flex flex-col min-h-0 overflow-hidden">
                 <ActionPanel
                   currentPlayer={gameState.players[currentPlayerIndex]}
                   selectedGangster={selectedGangster}

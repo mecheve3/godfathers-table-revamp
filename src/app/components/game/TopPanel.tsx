@@ -23,7 +23,7 @@ export default function TopPanel({ onRestart, onNewGame }: TopPanelProps) {
   }, [])
 
   return (
-    <div className="bg-gradient-to-b from-[#3D2314] to-[#2B1710] py-1.5 px-4 w-full sticky top-0 z-10 border-b border-zinc-700 flex items-center">
+    <div className="bg-gradient-to-b from-[#3D2314] to-[#2B1710] py-1.5 px-4 w-full flex-shrink-0 border-b border-zinc-700 flex items-center z-10">
       <div className="relative" ref={menuRef}>
         <button
           onClick={() => setMenuOpen(!menuOpen)}

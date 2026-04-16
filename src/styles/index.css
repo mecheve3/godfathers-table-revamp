@@ -41,3 +41,19 @@
 .police-raid-overlay {
   animation: police-raid-flash 1.8s ease-in-out forwards;
 }
+
+/* ── Thin scrollbar for game log ────────────────────────────────────────────── */
+.game-log-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #4b4b4b transparent;
+}
+.game-log-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+.game-log-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.game-log-scroll::-webkit-scrollbar-thumb {
+  background-color: #4b4b4b;
+  border-radius: 2px;
+}

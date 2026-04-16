@@ -24,13 +24,36 @@ const PLAYER_DOT_COLORS: Record<string, string> = {
 }
 
 export default function GameLog({ entries, currentRound }: GameLogProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const [collapsedRounds, setCollapsedRounds] = useState<Set<number>>(new Set())
+  const [newActivity, setNewActivity] = useState(false)
 
-  // Auto-scroll to bottom when new entries arrive
+  // Auto-scroll only when already near the bottom; otherwise show "new activity" badge
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+    const container = containerRef.current
+    if (!container) return
+    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 80
+    if (isNearBottom) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+      setNewActivity(false)
+    } else {
+      setNewActivity(true)
+    }
   }, [entries.length])
+
+  const scrollToBottom = () => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+    setNewActivity(false)
+  }
+
+  // Clear badge when user scrolls to bottom manually
+  const handleScroll = () => {
+    const container = containerRef.current
+    if (!container) return
+    const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 80
+    if (isNearBottom) setNewActivity(false)
+  }
 
   // Group entries by round
   const byRound = new Map<number, LogEntry[]>()
@@ -60,7 +83,16 @@ export default function GameLog({ entries, currentRound }: GameLogProps) {
   }
 
   return (
-    <div className="overflow-y-auto flex-1 min-h-0 pr-1 space-y-0.5 text-xs">
+    <div className="relative flex flex-col min-h-0 flex-1">
+      {newActivity && (
+        <button
+          onClick={scrollToBottom}
+          className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 text-[10px] bg-[#C9A84C] text-[#2B1710] font-semibold px-2 py-0.5 rounded-full shadow-lg whitespace-nowrap"
+        >
+          New activity ↓
+        </button>
+      )}
+    <div ref={containerRef} onScroll={handleScroll} className="overflow-y-auto flex-1 min-h-0 pr-1 space-y-0.5 text-xs">
       {rounds.map((round) => {
         const roundEntries = byRound.get(round) ?? []
         const isCurrentRound = round === currentRound
@@ -117,6 +149,7 @@ export default function GameLog({ entries, currentRound }: GameLogProps) {
         )
       })}
       <div ref={bottomRef} />
+    </div>
     </div>
   )
 }

@@ -122,7 +122,7 @@ export default function ActionPanel({
           <div className="flex-shrink-0 px-3 py-1.5 flex items-center gap-1.5">
             <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Game Log</span>
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto px-1 pb-2">
+          <div className="flex-1 min-h-0 overflow-y-auto game-log-scroll px-1 pb-2">
             <GameLog entries={logEntries} currentRound={gameState.turn} />
           </div>
         </div>
