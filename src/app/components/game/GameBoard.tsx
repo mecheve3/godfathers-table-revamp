@@ -13,6 +13,8 @@ import {
 import type { GameState, Action } from "../../features/game/types"
 import { decideBotFirstPlay, decideBotSecondPlay, getRandomDiscardCard, decideBotSeating } from "../../features/game/botDecisionTree"
 import { playSFX } from "../../features/game/sfx"
+import { buildActionLog, buildExplosionLog, buildPaymentLog } from "../../features/game/logBuilder"
+import type { LogEntry } from "../../features/game/types"
 import ActionPanel from "./ActionPanel"
 import BoardPosition from "./BoardPosition"
 import TopPanel from "./TopPanel"
@@ -133,6 +135,16 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   const [botLog, setBotLog] = useState<string[]>([])
   const [seatAnimations, setSeatAnimations] = useState<Record<number, string>>({})
   const [policeRaidActive, setPoliceRaidActive] = useState(false)
+  const [logEntries, setLogEntries] = useState<LogEntry[]>([])
+
+  const addLogEntry = (data: Omit<LogEntry, "id" | "highlighted">) => {
+    const id = `log-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    const entry: LogEntry = { ...data, id, highlighted: true }
+    setLogEntries((prev) => [...prev, entry])
+    setTimeout(() => {
+      setLogEntries((prev) => prev.map((e) => (e.id === id ? { ...e, highlighted: false } : e)))
+    }, 2000)
+  }
 
   const triggerSeatAnimation = (seatIds: number[], animClass: string, durationMs = 960) => {
     if (!seatIds.length || !animClass) return
@@ -176,6 +188,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         const stateAfterExplosions = checkCakeExplosions(gameState, currentPlayer.id)
         setGameState(stateAfterExplosions)
         toast.error(`💥 ${explodingCakes.length} cake${explodingCakes.length > 1 ? "s" : ""} exploded!`)
+        addLogEntry({ round: gameState.turn, playerId: currentPlayer.id, playerName: currentPlayer.name, message: buildExplosionLog(currentPlayer.name, currentPlayer.id, gameState, stateAfterExplosions), type: "explosion" })
       }
     }
   }, [currentPlayerIndex, gameState]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -190,6 +203,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         setGameState({ ...gameState, players: updatedPlayers, bankMoney: Math.max(0, gameState.bankMoney - payment) })
         if (gameMode !== "solo" || currentPlayer.id === "player1") playSFX("bank", 0.7)
         toast.success(`${currentPlayer.name} received $${payment.toLocaleString()}`)
+        addLogEntry({ round: gameState.turn, playerId: currentPlayer.id, playerName: currentPlayer.name, message: buildPaymentLog(currentPlayer.name, payment), type: "payment" })
       }
     }
   }, [currentPlayerIndex, gameState.currentPhase]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -238,9 +252,10 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     return (fromIdx + 1) % total
   }
 
-  const executeSingleBotTurn = (state: GameState, playerIndex: number): { newState: GameState; nextPlayerIndex: number; logs: string[]; actionSummaries: ActionSummary[] } => {
+  const executeSingleBotTurn = (state: GameState, playerIndex: number): { newState: GameState; nextPlayerIndex: number; logs: string[]; actionSummaries: ActionSummary[]; logEntryData: Omit<LogEntry, "id" | "highlighted">[] } => {
     const logs: string[] = []
     const actionSummaries: ActionSummary[] = []
+    const logEntryData: Omit<LogEntry, "id" | "highlighted">[] = []
     const botPlayer = state.players[playerIndex]
     const botId = botPlayer.id
     let currentState = state
@@ -262,14 +277,18 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       }
     } else {
       actionSummaries.push(computeActionSeats(firstPlay.action, currentState))
+      const preFirst = currentState
       currentState = playCard(currentState, botId, firstPlay.cardId)
       currentState = performAction(currentState, firstPlay.action)
+      logEntryData.push({ round: state.turn, playerId: botId, playerName: botPlayer.name, message: buildActionLog(firstPlay.action, preFirst, currentState), type: "action" })
       logs.push(`${botPlayer.name}: ${firstPlay.log}`)
       const secondPlay = decideBotSecondPlay(currentState, botId)
       if (secondPlay) {
         actionSummaries.push(computeActionSeats(secondPlay.action, currentState))
+        const preSecond = currentState
         currentState = playCard(currentState, botId, secondPlay.cardId)
         currentState = performAction(currentState, secondPlay.action)
+        logEntryData.push({ round: state.turn, playerId: botId, playerName: botPlayer.name, message: buildActionLog(secondPlay.action, preSecond, currentState), type: "action" })
         logs.push(`${botPlayer.name} (2nd): ${secondPlay.log}`)
       }
     }
@@ -280,7 +299,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     if (nextPlayerIndex <= playerIndex) finalState.turn += 1
     finalState.currentPhase = "SELECT_CARD"
     finalState.selectedCakeId = undefined
-    return { newState: finalState, nextPlayerIndex, logs, actionSummaries }
+    return { newState: finalState, nextPlayerIndex, logs, actionSummaries, logEntryData }
   }
 
   useEffect(() => {
@@ -292,11 +311,12 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     const timer = setTimeout(() => {
       const latestState = gameStateRef.current
       if (latestState.currentPhase !== "SELECT_CARD") return
-      const { newState, nextPlayerIndex, logs, actionSummaries } = executeSingleBotTurn(latestState, currentPlayerIndex)
+      const { newState, nextPlayerIndex, logs, actionSummaries, logEntryData } = executeSingleBotTurn(latestState, currentPlayerIndex)
       for (const summary of actionSummaries) {
         if (summary.soundName === "policeraid") { playSFX("policeraid", 0.7); setPoliceRaidActive(true); setTimeout(() => setPoliceRaidActive(false), 1800) }
         else { triggerSeatAnimation(summary.seatIds, summary.animClass, 960); if (summary.soundName) playSFX(summary.soundName, 0.7, summary.soundDelay) }
       }
+      for (const entry of logEntryData) addLogEntry(entry)
       setBotLog((prev) => [...prev.slice(-80), ...logs])
       setCurrentPlayerIndex(nextPlayerIndex)
       setGameState(newState)
@@ -608,8 +628,17 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     triggerSeatAnimation(feedback.seatIds, feedback.animClass, 960)
     if (feedback.soundName) playSFX(feedback.soundName, 0.7, feedback.soundDelay)
 
+    const preActionState = newGameState
     try { newGameState = performAction(newGameState, action) }
     catch (err) { toast.error("The action could not be completed."); return }
+
+    addLogEntry({
+      round: gameState.turn,
+      playerId: currentPlayer.id,
+      playerName: currentPlayer.name,
+      message: buildActionLog(action, preActionState, newGameState),
+      type: "action",
+    })
 
     setSelectedCardId(null); setSelectedGangsterIndex(null); setSelectedDirection(null); setTargetPositionId(null)
     setValidCakes([]); setValidDirections([]); setPillsApplied(0); setPendingPillTargetIds([]); setValidPillTargets([])
@@ -728,7 +757,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     setSelectedDirection(null); setTargetPositionId(null); setGameOver(false)
     setValidGangsters([]); setValidTargets([]); setValidCakes([]); setValidDirections([])
     setPillsApplied(0); setPendingPillTargetIds([]); setValidPillTargets([])
-    setFinalStandings([]); setSecondActionTaken(false); setBotLog([]); setSeatAnimations([]); setPoliceRaidActive(false)
+    setFinalStandings([]); setSecondActionTaken(false); setBotLog([]); setSeatAnimations([]); setPoliceRaidActive(false); setLogEntries([])
     setSeatingSelectedGangsterId(null); setSeatingCurrentIdx(0)
     if (seatingType === "manual") {
       const order = newGameState.players.map((p) => p.id)
@@ -831,6 +860,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                   seatingCurrentPlayerId={seatingPlayerOrder[seatingCurrentIdx]}
                   seatingSelectedGangsterId={seatingSelectedGangsterId}
                   onSeatingGangsterSelect={handleSeatingGangsterSelect}
+                  logEntries={logEntries}
                 />
               </div>
             </div>

@@ -100,3 +100,14 @@ export interface CakeBomb {
   roundPlaced: number
   color: string
 }
+
+// Game action log entry
+export interface LogEntry {
+  id: string
+  round: number
+  playerId: string
+  playerName: string
+  message: string
+  type: 'action' | 'payment' | 'explosion' | 'system'
+  highlighted: boolean
+}

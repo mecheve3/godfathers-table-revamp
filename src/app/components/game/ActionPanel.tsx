@@ -1,5 +1,6 @@
-import type { Player, Gangster, ActionType, GameState, Card, GamePhase, CakeBomb } from "../../features/game/types"
+import type { Player, Gangster, ActionType, GameState, Card, GamePhase, CakeBomb, LogEntry } from "../../features/game/types"
 import PlayerDashboard from "./PlayerDashboard"
+import GameLog from "./GameLog"
 
 interface ActionPanelProps {
   currentPlayer: Player
@@ -35,6 +36,7 @@ interface ActionPanelProps {
   seatingCurrentPlayerId?: string
   seatingSelectedGangsterId?: string | null
   onSeatingGangsterSelect?: (gangsterId: string) => void
+  logEntries?: LogEntry[]
 }
 
 const getPlayerColor = (playerId: string) => {
@@ -59,17 +61,16 @@ export default function ActionPanel({
   seatingCurrentPlayerId,
   seatingSelectedGangsterId,
   onSeatingGangsterSelect,
+  logEntries = [],
 }: ActionPanelProps) {
   const playerColor = getPlayerColor(currentPlayer.id)
   const currentPlayerIndex = gameState.players.findIndex((p) => p.id === currentPlayer.id)
 
   return (
-    <div className={`border-2 ${playerColor} h-full flex flex-col bg-gradient-to-b from-[#3D2314] to-[#2B1710]`}>
-      <div className="py-1 pb-0 px-4 pt-3">
-        <h2 className="text-[#F5AC0E] font-bold">{gameOver ? "Game Over!" : ""}</h2>
-      </div>
-      <div className="p-4 space-y-2 flex-grow text-[#F5AC0E]">
-        {gameOver && (
+    <div className={`border-2 ${playerColor} h-full flex flex-col bg-gradient-to-b from-[#3D2314] to-[#2B1710] overflow-hidden`}>
+      {/* Fixed top: standings (game over) or player dashboards + bank */}
+      <div className="flex-shrink-0 p-4 space-y-2 text-[#F5AC0E]">
+        {gameOver ? (
           <div className="p-4 bg-zinc-700 rounded-md text-center">
             <h3 className="font-bold text-xl mb-2">Game Over!</h3>
             <div className="space-y-4">
@@ -89,29 +90,43 @@ export default function ActionPanel({
               </div>
             </div>
           </div>
+        ) : (
+          <>
+            <div className="space-y-3">
+              {gameState.players.slice(0, playerCount).map((player, index) => (
+                <PlayerDashboard
+                  key={player.id}
+                  player={player}
+                  isCurrentPlayer={index === currentPlayerIndex}
+                  isSeatingPlayer={player.id === seatingCurrentPlayerId}
+                  seatingGangsterIds={seatingQueue?.[player.id] ?? []}
+                  selectedSeatingGangsterId={player.id === seatingCurrentPlayerId ? seatingSelectedGangsterId : null}
+                  onSeatingGangsterSelect={player.id === seatingCurrentPlayerId ? onSeatingGangsterSelect : undefined}
+                />
+              ))}
+            </div>
+
+            <div className="pt-3 border-t border-zinc-700">
+              <div className="flex justify-between items-center">
+                <span className="font-semibold text-[#F5AC0E]">Bank:</span>
+                <span className="text-[#F5AC0E] font-bold">${gameState.bankMoney.toLocaleString()}</span>
+              </div>
+            </div>
+          </>
         )}
+      </div>
 
-        <div className="space-y-3">
-          {gameState.players.slice(0, playerCount).map((player, index) => (
-            <PlayerDashboard
-              key={player.id}
-              player={player}
-              isCurrentPlayer={index === currentPlayerIndex}
-              isSeatingPlayer={player.id === seatingCurrentPlayerId}
-              seatingGangsterIds={seatingQueue?.[player.id] ?? []}
-              selectedSeatingGangsterId={player.id === seatingCurrentPlayerId ? seatingSelectedGangsterId : null}
-              onSeatingGangsterSelect={player.id === seatingCurrentPlayerId ? onSeatingGangsterSelect : undefined}
-            />
-          ))}
-        </div>
-
-        <div className="mt-auto pt-4 border-t border-zinc-700">
-          <div className="flex justify-between items-center">
-            <span className="font-semibold text-[#F5AC0E]">Bank:</span>
-            <span className="text-[#F5AC0E] font-bold">${gameState.bankMoney.toLocaleString()}</span>
+      {/* Game log — takes remaining height */}
+      {!gameOver && (
+        <div className="flex flex-col flex-1 min-h-0 border-t border-zinc-700 overflow-hidden">
+          <div className="flex-shrink-0 px-3 py-1.5 flex items-center gap-1.5">
+            <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Game Log</span>
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto px-1 pb-2">
+            <GameLog entries={logEntries} currentRound={gameState.turn} />
           </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
