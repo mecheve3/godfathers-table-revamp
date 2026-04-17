@@ -8,6 +8,8 @@ interface BoardPositionProps {
   highlighted: boolean
   onClick: () => void
   animClass?: string
+  /** Sprite image path to blink over this seat when an action targets it */
+  spriteOverlay?: string
 }
 
 const positionMap: Record<number, { x: number; y: number }> = {
@@ -74,7 +76,7 @@ const getGangsterTypeName = (type: GangsterType) => {
 const getGangsterImage = (playerId: string, type: GangsterType) =>
   `/images/players/${getTeam(playerId)}/${getGangsterTypeName(type)}.png`
 
-export default function BoardPosition({ position, gameState, selected, highlighted, onClick, animClass }: BoardPositionProps) {
+export default function BoardPosition({ position, gameState, selected, highlighted, onClick, animClass, spriteOverlay }: BoardPositionProps) {
   const [cakes, setCakes] = useState<typeof gameState.cakes>([])
   const style = getPositionStyle(position.id)
 
@@ -119,6 +121,11 @@ export default function BoardPosition({ position, gameState, selected, highlight
         {isSleeping && (
           <div className="absolute inset-0 flex items-center justify-center bg-blue-900/50 rounded-full pointer-events-none">
             <span className="text-sm font-black text-blue-100 leading-none zzz-blink drop-shadow-lg">Zzz</span>
+          </div>
+        )}
+        {spriteOverlay && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
+            <img src={spriteOverlay} alt="" className="w-full h-full object-contain sprite-blink" draggable={false} />
           </div>
         )}
       </div>

@@ -1035,43 +1035,38 @@ export const initializeGame = (gameState: GameState): GameState => {
   return dealCards(newGameState)
 }
 
-// Calculate payment for a player
-export const calculatePayment = (player: Player, board: Position[]): number => {
-  let payment = 0
+export interface PaymentBreakdown {
+  godfather: number
+  bar: number
+  casino: number
+  stripClub: number
+  monopolyBonus: number
+  subtotal: number
+  hasCashRegister: boolean
+  total: number
+}
 
-  // Check if godfather is alive AND awake (sleeping godfather earns nothing)
+/** Compute the full income breakdown for a player this turn */
+export const calculatePaymentBreakdown = (player: Player, board: Position[]): PaymentBreakdown => {
   const godfatherAlive = player.gangsters.some((g) => g.type === "GODFATHER" && g.position !== null && g.status !== "sleeping")
-  if (godfatherAlive) {
-    payment += 1000
-  }
+  const godfather = godfatherAlive ? 1000 : 0
 
-  // Count businesses controlled — sleeping gangsters earn nothing
-  const businessTypes = ["BAR", "GAMBLING_HOUSE", "STRIP_CLUB"]
-  const controlledBusinesses: Record<string, number> = {
-    BAR: 0,
-    GAMBLING_HOUSE: 0,
-    STRIP_CLUB: 0,
-  }
-
-  // Check which businesses player controls (only awake gangsters contribute)
+  const businessCounts: Record<string, number> = { BAR: 0, GAMBLING_HOUSE: 0, STRIP_CLUB: 0 }
   player.gangsters.forEach((gangster) => {
     if (gangster.position !== null && gangster.status !== "sleeping") {
       const position = board.find((pos) => pos.id === gangster.position)
-      if (position && businessTypes.includes(position.item as string)) {
-        controlledBusinesses[position.item as string]++
-        payment += 1000 // $1000 for each business
+      if (position && position.item && position.item in businessCounts) {
+        businessCounts[position.item as string]++
       }
     }
   })
 
-  // Check for monopolies ($4000 for controlling both of a business type)
-  Object.values(controlledBusinesses).forEach((count) => {
-    if (count >= 2) {
-      payment += 4000
-    }
-  })
+  const bar = businessCounts.BAR * 1000
+  const casino = businessCounts.GAMBLING_HOUSE * 1000
+  const stripClub = businessCounts.STRIP_CLUB * 1000
+  let monopolyBonus = 0
+  Object.values(businessCounts).forEach((count) => { if (count >= 2) monopolyBonus += 4000 })
 
-  // Check if any awake gangster is at the cash register (doubles income)
   const hasCashRegister = player.gangsters.some((gangster) => {
     if (gangster.position !== null && gangster.status !== "sleeping") {
       const position = board.find((pos) => pos.id === gangster.position)
@@ -1080,12 +1075,14 @@ export const calculatePayment = (player: Player, board: Position[]): number => {
     return false
   })
 
-  if (hasCashRegister) {
-    payment *= 2
-  }
-
-  return payment
+  const subtotal = godfather + bar + casino + stripClub + monopolyBonus
+  const total = hasCashRegister ? subtotal * 2 : subtotal
+  return { godfather, bar, casino, stripClub, monopolyBonus, subtotal, hasCashRegister, total }
 }
+
+// Calculate payment for a player
+export const calculatePayment = (player: Player, board: Position[]): number =>
+  calculatePaymentBreakdown(player, board).total
 
 // Perform an action and return the new game state
 export const performAction = (gameState: GameState, action: Action): GameState => {

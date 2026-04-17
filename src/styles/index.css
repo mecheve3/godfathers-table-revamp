@@ -42,6 +42,16 @@
   animation: police-raid-flash 1.8s ease-in-out forwards;
 }
 
+/* ── Seat sprite overlay blink (knife, gun, cake, displacement) ─────────────── */
+@keyframes sprite-blink {
+  0%, 100% { opacity: 1; transform: scale(1.05); }
+  25%, 75% { opacity: 0; transform: scale(0.9);  }
+  50%       { opacity: 1; transform: scale(1);    }
+}
+.sprite-blink {
+  animation: sprite-blink 0.18s steps(1, end) 4;
+}
+
 /* ── Sleeping gangster Zzz blink ────────────────────────────────────────────── */
 @keyframes zzz-blink {
   0%, 100% { opacity: 1;   transform: scale(1);    }

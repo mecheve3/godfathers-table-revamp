@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react"
 import {
   initialGameState, initialGameState4, initialGameState5, initialGameState6,
-  performAction, calculatePayment, initializeGame, dealCards, playCard,
+  performAction, calculatePayment, calculatePaymentBreakdown, initializeGame, dealCards, playCard,
   getValidGangstersForCard, getValidDisplacementPositions, getValidKnifeTargetPositions,
   getValidGunTargetPosition, hasCardOfType, getValidCakePositions, checkCakeExplosions,
   getValidCakesForPassing, getValidDirectionsForPassingCake, getValidCakesForExploding,
@@ -73,12 +73,23 @@ function computeActionSeats(action: Action, state: GameState): ActionSummary {
   }
 }
 
+/** Sprite image path for each card type — rendered as a blinking overlay on affected seats */
+const CARD_SPRITE: Partial<Record<string, string>> = {
+  KNIFE: '/images/Sprites/knife.png',
+  GUN: '/images/Sprites/gun.png',
+  PASS_CAKE: '/images/Sprites/passcake.png',
+  EXPLODE_CAKE: '/images/Sprites/explodecake.png',
+  DISPLACEMENT: '/images/Sprites/displacement.png',
+}
+
 /** Per-action visual feedback included in sync payloads so receiving clients can replay animations and logs */
 export interface SyncAction {
   playerId: string
   cardType: string
   logEntry: Omit<LogEntry, "id" | "highlighted">
   seatAnim?: { seatIds: number[]; animClass: string; durationMs?: number }
+  /** Sprite overlay to blink on affected seats */
+  spriteAnim?: { seatIds: number[]; imagePath: string }
 }
 
 /** Full game sync payload — game state + seating state + action feedback, broadcast after every turn */
@@ -180,6 +191,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   const [validPillTargets, setValidPillTargets] = useState<string[]>([])
   const [botLog, setBotLog] = useState<string[]>([])
   const [seatAnimations, setSeatAnimations] = useState<Record<number, string>>({})
+  const [seatSpriteOverlays, setSeatSpriteOverlays] = useState<Record<number, string>>({})
   const [policeRaidActive, setPoliceRaidActive] = useState(false)
   const [logEntries, setLogEntries] = useState<LogEntry[]>([])
   const [activeBotPlayerId, setActiveBotPlayerId] = useState<string | null>(null)
@@ -205,6 +217,15 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     setSeatAnimations((prev) => { const next = { ...prev }; for (const id of seatIds) next[id] = animClass; return next })
     setTimeout(() => {
       setSeatAnimations((prev) => { const next = { ...prev }; for (const id of seatIds) delete next[id]; return next })
+    }, durationMs)
+  }
+
+  /** Show a sprite image blinking over the given seat(s) for durationMs */
+  const triggerSeatSprite = (seatIds: number[], imagePath: string, durationMs = 800) => {
+    if (!seatIds.length || !imagePath) return
+    setSeatSpriteOverlays((prev) => { const next = { ...prev }; for (const id of seatIds) next[id] = imagePath; return next })
+    setTimeout(() => {
+      setSeatSpriteOverlays((prev) => { const next = { ...prev }; for (const id of seatIds) delete next[id]; return next })
     }, durationMs)
   }
 
@@ -273,6 +294,17 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
               act.seatAnim.durationMs ?? (act.seatAnim.animClass === "seat-anim-danger" ? 2000 : 960),
             )
           }
+          if (act.spriteAnim) {
+            const { seatIds, imagePath } = act.spriteAnim
+            if (act.cardType === "DISPLACEMENT" && seatIds.length >= 2) {
+              triggerSeatSprite([seatIds[0]], imagePath, 500)
+              setTimeout(() => triggerSeatSprite([seatIds[1]], imagePath, 500), 520)
+            } else {
+              const spriteSeats = (act.cardType === "KNIFE" || act.cardType === "GUN")
+                ? seatIds.slice(1) : seatIds
+              triggerSeatSprite(spriteSeats, imagePath, 800)
+            }
+          }
         }, i * 800)
       })
     }
@@ -294,9 +326,10 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     if (socketStatus !== 'open') return
     if (initialBroadcastDone.current) return
     initialBroadcastDone.current = true
-    const firstPayment = seatingType !== "manual" ? calculatePayment(gameState.players[0], gameState.board) : 0
-    const paymentLogEntry: Omit<LogEntry, "id" | "highlighted"> | undefined = firstPayment > 0
-      ? { round: gameState.turn, playerId: gameState.players[0].id, playerName: gameState.players[0].name, message: buildPaymentLog(gameState.players[0].name, firstPayment), type: "payment" }
+    const firstBreakdown = seatingType !== "manual" ? calculatePaymentBreakdown(gameState.players[0], gameState.board) : null
+    const firstPayment = firstBreakdown?.total ?? 0
+    const paymentLogEntry: Omit<LogEntry, "id" | "highlighted"> | undefined = firstPayment > 0 && firstBreakdown
+      ? { round: gameState.turn, playerId: gameState.players[0].id, playerName: gameState.players[0].name, message: buildPaymentLog(gameState.players[0].name, firstPayment, firstBreakdown), type: "payment" }
       : undefined
     onTurnEnd?.({
       gameState,
@@ -369,7 +402,8 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       // Prevent duplicate payment when phase bounces back to SELECT_CARD (e.g. cancel action)
       const paymentKey = `${currentPlayer.id}:${gameState.turn}`
       if (paymentProcessedRef.current === paymentKey) return
-      const payment = calculatePayment(currentPlayer, gameState.board)
+      const breakdown = calculatePaymentBreakdown(currentPlayer, gameState.board)
+      const payment = breakdown.total
       if (payment > 0) {
         paymentProcessedRef.current = paymentKey
         const updatedPlayers = [...gameState.players]
@@ -379,7 +413,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         // In multiplayer, the incomingSync handler replays this log at the correct position
         // in the action sequence — suppress the local log to avoid ordering issues on P2+
         if (!suppressPaymentLogRef.current) {
-          addLogEntry({ round: gameState.turn, playerId: currentPlayer.id, playerName: currentPlayer.name, message: buildPaymentLog(currentPlayer.name, payment), type: "payment" })
+          addLogEntry({ round: gameState.turn, playerId: currentPlayer.id, playerName: currentPlayer.name, message: buildPaymentLog(currentPlayer.name, payment, breakdown), type: "payment" })
         }
         suppressPaymentLogRef.current = false
       }
@@ -856,6 +890,22 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       playSFX(feedback.soundName, vol, feedback.soundDelay)
     }
 
+    // Sprite overlays on affected seats
+    const spritePath = CARD_SPRITE[card.type]
+    if (spritePath && feedback.seatIds.length > 0) {
+      if (card.type === "DISPLACEMENT" && feedback.seatIds.length >= 2) {
+        // Blink at origin first, then destination
+        triggerSeatSprite([feedback.seatIds[0]], spritePath, 500)
+        setTimeout(() => triggerSeatSprite([feedback.seatIds[1]], spritePath, 500), 520)
+      } else {
+        // For knife/gun show sprite only on target seat; for cakes show on all
+        const spriteSeats = (card.type === "KNIFE" || card.type === "GUN")
+          ? feedback.seatIds.slice(1)   // skip shooter, highlight target
+          : feedback.seatIds
+        triggerSeatSprite(spriteSeats, spritePath, 800)
+      }
+    }
+
     const preActionState = newGameState
     try { newGameState = performAction(newGameState, action) }
     catch (err) { return }
@@ -876,6 +926,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       cardType: card.type,
       logEntry: actionLogEntry,
       seatAnim: feedback.animClass ? { seatIds: feedback.seatIds, animClass: feedback.animClass } : undefined,
+      spriteAnim: spritePath && feedback.seatIds.length > 0 ? { seatIds: feedback.seatIds, imagePath: spritePath } : undefined,
     }
 
     setSelectedCardId(null); setSelectedGangsterIndex(null); setSelectedDirection(null); setTargetPositionId(null)
@@ -1012,9 +1063,10 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
 
     // Pre-compute next player's collection so receiving clients can replay the log
     // in the correct order (after action logs) instead of firing it synchronously
-    const nextPayment = calculatePayment(newGameState.players[nextPlayerIndex], newGameState.board)
+    const nextBreakdown = calculatePaymentBreakdown(newGameState.players[nextPlayerIndex], newGameState.board)
+    const nextPayment = nextBreakdown.total
     const paymentLogEntry: Omit<LogEntry, "id" | "highlighted"> | undefined = nextPayment > 0
-      ? { round: newGameState.turn, playerId: newGameState.players[nextPlayerIndex].id, playerName: newGameState.players[nextPlayerIndex].name, message: buildPaymentLog(newGameState.players[nextPlayerIndex].name, nextPayment), type: "payment" }
+      ? { round: newGameState.turn, playerId: newGameState.players[nextPlayerIndex].id, playerName: newGameState.players[nextPlayerIndex].name, message: buildPaymentLog(newGameState.players[nextPlayerIndex].name, nextPayment, nextBreakdown), type: "payment" }
       : undefined
 
     // Broadcast state to other clients in multiplayer
@@ -1049,10 +1101,117 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     return () => { document.body.style.overflow = prev }
   }, [])
 
+  const PLAYER_COLORS: Record<string, string> = {
+    player1: '#ef4444', player2: '#3b82f6', player3: '#facc15',
+    player4: '#22c55e', player5: '#f97316', player6: '#a855f7',
+  }
+  const RANK_LABELS = ['1st', '2nd', '3rd', '4th', '5th', '6th']
+
   return (
     <div className="h-screen overflow-hidden flex flex-col bg-gradient-to-b from-[#2B1710] to-[#3D2314]">
       {policeRaidActive && (
         <div className="fixed inset-0 pointer-events-none police-raid-overlay" style={{ background: "linear-gradient(135deg, rgba(239,68,68,0.35), rgba(59,130,246,0.35))", zIndex: 9999 }} />
+      )}
+
+      {/* ── Final Results Modal ──────────────────────────────────────────────── */}
+      {gameOver && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div
+            className="w-full max-w-md flex flex-col gap-6 p-8 rounded-lg"
+            style={{
+              background: 'linear-gradient(180deg, #0d0402 0%, #1a0c06 100%)',
+              border: '1px solid #C9A84C66',
+              boxShadow: '0 0 60px rgba(0,0,0,0.8), inset 0 1px 0 rgba(201,168,76,0.15)',
+            }}
+          >
+            {/* Title */}
+            <div className="text-center">
+              <p className="text-xs uppercase tracking-[0.4em] font-serif mb-1" style={{ color: '#9b1c1c' }}>
+                The Family Has Spoken
+              </p>
+              <h2 className="text-3xl font-serif uppercase tracking-widest" style={{ color: '#C9A84C' }}>
+                Final Results
+              </h2>
+            </div>
+
+            {/* Rankings */}
+            <div className="flex flex-col gap-2">
+              {finalStandings.map((standing, i) => {
+                const playerId = gameState.players.find((p) => p.name === standing.player)?.id ?? ''
+                const color = PLAYER_COLORS[playerId] ?? '#9b7060'
+                const isWinner = i === 0
+                return (
+                  <div
+                    key={standing.rank}
+                    className="flex items-center gap-4 px-4 py-3 rounded"
+                    style={{
+                      background: isWinner ? 'rgba(201,168,76,0.12)' : 'rgba(255,255,255,0.03)',
+                      border: `1px solid ${isWinner ? '#C9A84C55' : '#3f151522'}`,
+                    }}
+                  >
+                    <span
+                      className="w-8 text-center text-sm font-serif font-bold uppercase tracking-wide flex-shrink-0"
+                      style={{ color: isWinner ? '#C9A84C' : '#6b4c2a' }}
+                    >
+                      {RANK_LABELS[i] ?? `${i + 1}.`}
+                    </span>
+                    <span
+                      className="flex-1 font-serif uppercase tracking-wider text-base"
+                      style={{ color }}
+                    >
+                      {standing.player}
+                    </span>
+                    {standing.aliveGangsters !== undefined && standing.aliveGangsters > 0 && (
+                      <span className="text-xs font-serif" style={{ color: '#6b4c2a' }}>
+                        {standing.aliveGangsters} alive
+                      </span>
+                    )}
+                    <span
+                      className="font-serif font-bold text-base flex-shrink-0"
+                      style={{ color: isWinner ? '#C9A84C' : '#9b7060' }}
+                    >
+                      ${standing.money.toLocaleString()}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => {
+                  if (gameMode === 'multiplayer') {
+                    const localName = localPlayerIndex !== undefined ? gameState.players[localPlayerIndex]?.name : gameState.players[currentPlayerIndex]?.name
+                    onAbandon?.('quit', localName ?? 'A player')
+                  }
+                  onReturnToHome()
+                }}
+                className="flex-1 py-3 rounded text-sm font-serif uppercase tracking-widest transition-colors"
+                style={{ background: '#3f1515', color: '#C9A84C', border: '1px solid #C9A84C44' }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#5a1f1f' }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = '#3f1515' }}
+              >
+                New Game
+              </button>
+              <button
+                onClick={() => {
+                  if (gameMode === 'multiplayer') {
+                    const localName = localPlayerIndex !== undefined ? gameState.players[localPlayerIndex]?.name : gameState.players[currentPlayerIndex]?.name
+                    onAbandon?.('restart', localName ?? 'A player')
+                  }
+                  restartGame()
+                }}
+                className="flex-1 py-3 rounded text-sm font-serif uppercase tracking-widest transition-colors"
+                style={{ background: '#1a2a1a', color: '#4ade80', border: '1px solid #4ade8044' }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#22382a' }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = '#1a2a1a' }}
+              >
+                Restart
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="flex flex-row flex-1 min-h-0 overflow-hidden">
@@ -1166,6 +1325,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                         }
                         onClick={() => handlePositionClick(position.id)}
                         animClass={seatAnimations[position.id]}
+                        spriteOverlay={seatSpriteOverlays[position.id]}
                       />
                     ))}
                   </div>

@@ -1,10 +1,15 @@
 import type { ReactNode } from 'react'
+import { Volume2, VolumeX } from 'lucide-react'
+import { useAudio } from '../features/game/AudioContext'
 
 /**
  * Full-screen dark gradient wrapper used by every game screen.
- * Provides the consistent Godfather's Table background.
+ * Provides the consistent Godfather's Table background and a
+ * persistent music toggle in the bottom-right corner.
  */
 export function GameLayout({ children }: { children: ReactNode }) {
+  const { musicEnabled, toggleMusic } = useAudio()
+
   return (
     <div
       className="relative min-h-screen w-full flex flex-col"
@@ -14,6 +19,21 @@ export function GameLayout({ children }: { children: ReactNode }) {
       }}
     >
       {children}
+
+      {/* Music toggle — fixed bottom-right over all setup/lobby screens */}
+      <button
+        onClick={toggleMusic}
+        aria-label={musicEnabled ? 'Mute music' : 'Unmute music'}
+        className="fixed bottom-4 right-4 z-50 w-10 h-10 rounded-full flex items-center justify-center transition-colors"
+        style={{
+          background: musicEnabled ? 'rgba(63,21,21,0.85)' : 'rgba(30,10,5,0.85)',
+          border: `1px solid ${musicEnabled ? '#C9A84C55' : '#6b4c2a44'}`,
+          backdropFilter: 'blur(4px)',
+          color: musicEnabled ? '#C9A84C' : '#6b4c2a',
+        }}
+      >
+        {musicEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+      </button>
     </div>
   )
 }

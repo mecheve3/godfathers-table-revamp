@@ -163,8 +163,19 @@ export function buildActionLog(action: Action, preState: GameState, postState: G
   }
 }
 
-export function buildPaymentLog(playerName: string, amount: number): string {
-  return `${playerName} collects $${amount.toLocaleString()} from the bank`
+export function buildPaymentLog(playerName: string, amount: number, breakdown?: import('./game-logic').PaymentBreakdown): string {
+  const base = `${playerName} collects $${amount.toLocaleString()}`
+  if (!breakdown) return base
+
+  const parts: string[] = []
+  if (breakdown.godfather > 0)    parts.push(`Godfather: $${breakdown.godfather.toLocaleString()}`)
+  if (breakdown.bar > 0)          parts.push(`Bar: $${breakdown.bar.toLocaleString()}`)
+  if (breakdown.casino > 0)       parts.push(`Casino: $${breakdown.casino.toLocaleString()}`)
+  if (breakdown.stripClub > 0)    parts.push(`Strip Club: $${breakdown.stripClub.toLocaleString()}`)
+  if (breakdown.monopolyBonus > 0) parts.push(`Monopoly: $${breakdown.monopolyBonus.toLocaleString()}`)
+  if (breakdown.hasCashRegister)  parts.push(`×2 Cash Register`)
+
+  return parts.length > 0 ? `${base} (${parts.join(' · ')})` : base
 }
 
 export function buildExplosionLog(playerName: string, playerId: string, preState: GameState, postState: GameState): string {
