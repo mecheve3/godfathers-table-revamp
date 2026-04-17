@@ -3,6 +3,8 @@ export type MatchMode = 'quick' | 'create' | 'join'
 export type MatchConfig = {
   mode: MatchMode
   playerName?: string
+  /** Stable client-generated id for the local player */
+  hostId?: string
   roomCode?: string
   settings?: {
     maxPlayers: number

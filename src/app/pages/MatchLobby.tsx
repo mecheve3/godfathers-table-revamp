@@ -1,53 +1,119 @@
-import { useRef, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router'
 import { motion, AnimatePresence } from 'motion/react'
 import { toast } from 'sonner'
-import { Copy, CheckCircle2, User, Bot, Clock } from 'lucide-react'
+import { Copy, CheckCircle2, User, Bot, Clock, Wifi, WifiOff } from 'lucide-react'
 import { PageTransition } from '../components/PageTransition'
 import { Button } from '../components/Button'
 import { BackButton } from '../components/BackButton'
 import { GameLayout, ScreenTitle } from '../components/GameLayout'
 import { useMatch } from '../features/match/MatchContext'
-import type { LobbySlot } from '../features/match/types'
+import { useRoomSocket } from '../features/multiplayer/useRoomSocket'
+import type { RoomState, RoomPlayer } from '../features/multiplayer/types'
 
-function generateRoomCode(): string {
-  return Math.random().toString(36).substring(2, 8).toUpperCase()
+const PLAYER_COLOR: Record<number, string> = {
+  0: '#c9a84c',
+  1: '#6888e8',
+  2: '#e8c044',
+  3: '#44c868',
+  4: '#e87844',
+  5: '#a044e8',
 }
 
-function buildInitialSlots(maxPlayers: number): LobbySlot[] {
-  return [
-    { id: 'self', name: 'You', kind: 'host' },
-    ...Array.from({ length: maxPlayers - 1 }, (_, i) => ({
-      id: `slot-${i + 2}`,
-      name: '',
-      kind: 'empty' as const,
-    })),
-  ]
+function PlayerRow({ player, index }: { player: RoomPlayer; index: number }) {
+  const color = PLAYER_COLOR[index] ?? '#c9a84c'
+  return (
+    <motion.div
+      key={player.id}
+      initial={{ opacity: 0, x: -12 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 12 }}
+      className="flex items-center gap-3 py-2 border-b last:border-b-0"
+      style={{ borderColor: '#2a0808' }}
+    >
+      <span style={{ color }}>
+        {player.type === 'CPU' ? <Bot className="w-4 h-4" /> : <User className="w-4 h-4" />}
+      </span>
+      <span
+        className="text-base font-serif uppercase tracking-wider flex-1"
+        style={{ color }}
+      >
+        {player.name}
+      </span>
+      {player.isHost && (
+        <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded" style={{ background: '#3f1515', color: '#c9a84c' }}>
+          host
+        </span>
+      )}
+      {player.type === 'CPU' && (
+        <span className="text-xs uppercase tracking-wider" style={{ color: '#6b4c2a' }}>CPU</span>
+      )}
+      {player.type === 'HUMAN' && !player.isConnected && (
+        <span className="text-xs uppercase tracking-wider" style={{ color: '#6b4c2a' }}>away</span>
+      )}
+    </motion.div>
+  )
 }
 
-const SLOT_ICON = {
-  host:  <User className="w-4 h-4" />,
-  human: <User className="w-4 h-4" />,
-  cpu:   <Bot className="w-4 h-4" />,
-  empty: <Clock className="w-4 h-4 opacity-40" />,
+function EmptySlot() {
+  return (
+    <div className="flex items-center gap-3 py-2 border-b last:border-b-0" style={{ borderColor: '#2a0808' }}>
+      <Clock className="w-4 h-4 opacity-30" style={{ color: '#4a3020' }} />
+      <span className="text-base font-serif italic tracking-wider" style={{ color: '#4a3020' }}>
+        Empty seat
+      </span>
+    </div>
+  )
 }
 
 export default function MatchLobby() {
   const navigate = useNavigate()
-  const { config, clearConfig } = useMatch()
+  const { config, setConfig } = useMatch()
 
+  const roomCode  = config?.roomCode ?? ''
+  const playerId  = config?.hostId ?? ''
+  const playerName = config?.playerName ?? 'Player'
+  const isHost    = config?.mode === 'create'
   const maxPlayers = config?.settings?.maxPlayers ?? 4
-  const isJoining = config?.mode === 'join'
 
-  // Stable room code — generated once on mount
-  const roomCode = useRef(config?.roomCode ?? generateRoomCode()).current
-
-  const [slots, setSlots] = useState<LobbySlot[]>(() => buildInitialSlots(maxPlayers))
+  const [room, setRoom] = useState<RoomState | null>(null)
   const [copied, setCopied] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
 
-  const emptyCount = slots.filter((s) => s.kind === 'empty').length
-  const isLobbyFull = emptyCount === 0
+  // ── WebSocket ────────────────────────────────────────────────────────────
+
+  const handleRoomState = useCallback((r: RoomState) => setRoom(r), [])
+
+  const handleGameStarted = useCallback((r: RoomState) => {
+    setRoom(r)
+    toast.success('Game starting!')
+    // Convert room players to lobby slots and navigate
+    const slots = r.players.map((p, i) => ({
+      id: p.id,
+      name: p.name,
+      kind: p.isHost ? 'host' as const : p.type === 'CPU' ? 'cpu' as const : 'human' as const,
+    }))
+    setConfig({ ...config!, slots })
+    navigate('/game')
+  }, [config, navigate, setConfig])
+
+  const handleError = useCallback((msg: string) => toast.error(msg), [])
+
+  const { status, send, disconnect } = useRoomSocket({
+    roomCode,
+    playerId,
+    playerName,
+    onRoomState: handleRoomState,
+    onGameStarted: handleGameStarted,
+    onError: handleError,
+  })
+
+  // ── Derived state ────────────────────────────────────────────────────────
+
+  const humanCount = room?.players.filter((p) => p.type === 'HUMAN').length ?? 1
+  const emptyCount = maxPlayers - (room?.players.length ?? 1)
+
+  // ── Actions ──────────────────────────────────────────────────────────────
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(roomCode)
@@ -56,31 +122,37 @@ export default function MatchLobby() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const handleStartGame = async () => {
+  const handleStartGame = () => {
     setIsStarting(true)
-
-    // Fill every empty seat with a CPU player before starting
-    const filledSlots = slots.map((slot, i) =>
-      slot.kind === 'empty'
-        ? { ...slot, name: `CPU ${i + 1}`, kind: 'cpu' as const }
-        : slot
-    )
-    setSlots(filledSlots)
-
-    // Store filled slots in context so Game.tsx can read them
-    setConfig({ ...config!, slots: filledSlots })
-
-    await new Promise<void>((resolve) => setTimeout(resolve, 400))
-    toast.success('Starting game!')
-    setIsStarting(false)
-    navigate('/game')
+    send({ type: 'START_GAME' })
+    // Navigation happens when server sends GAME_STARTED
+    setTimeout(() => setIsStarting(false), 3000) // safety reset
   }
+
+  const handleBack = () => {
+    disconnect()
+    navigate('/menu')
+  }
+
+  // ── Connection badge ─────────────────────────────────────────────────────
+
+  const connectionEl = (
+    <div className="flex items-center gap-1.5 text-xs" style={{ color: status === 'open' ? '#4ade80' : '#ef4444' }}>
+      {status === 'open' ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+      {status === 'connecting' ? 'Connecting…' : status === 'open' ? 'Connected' : 'Disconnected'}
+    </div>
+  )
+
+  // ── Render ───────────────────────────────────────────────────────────────
 
   return (
     <PageTransition>
       <GameLayout>
-        <div className="flex flex-col items-center pt-16 pb-32 px-6 gap-10">
-          <ScreenTitle>Match Lobby</ScreenTitle>
+        <div className="flex flex-col items-center pt-16 pb-32 px-6 gap-8">
+          <div className="flex flex-col items-center gap-2">
+            <ScreenTitle>Match Lobby</ScreenTitle>
+            {connectionEl}
+          </div>
 
           {/* Room code */}
           <motion.button
@@ -90,16 +162,10 @@ export default function MatchLobby() {
             aria-label="Copy room code"
             className="flex items-center gap-3 group"
           >
-            <span
-              className="text-xl font-serif uppercase tracking-widest"
-              style={{ color: '#9b7060' }}
-            >
+            <span className="text-xl font-serif uppercase tracking-widest" style={{ color: '#9b7060' }}>
               Room Code:
             </span>
-            <strong
-              className="text-2xl font-serif uppercase tracking-widest"
-              style={{ color: '#C9A84C' }}
-            >
+            <strong className="text-2xl font-serif uppercase tracking-widest" style={{ color: '#C9A84C' }}>
               {roomCode}
             </strong>
             {copied
@@ -108,7 +174,7 @@ export default function MatchLobby() {
             }
           </motion.button>
 
-          {/* Player slots */}
+          {/* Player list */}
           <div
             className="w-full max-w-md border p-6 flex flex-col gap-3"
             style={{
@@ -117,78 +183,57 @@ export default function MatchLobby() {
               boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.6)',
             }}
           >
-            <p
-              className="text-xs uppercase tracking-[0.35em] font-serif mb-2"
-              style={{ color: '#9b1c1c' }}
-            >
-              Players ({slots.filter((s) => s.kind !== 'empty').length}/{maxPlayers})
+            <p className="text-xs uppercase tracking-[0.35em] font-serif mb-2" style={{ color: '#9b1c1c' }}>
+              Players ({(room?.players.length ?? 1)}/{maxPlayers})
             </p>
 
             <AnimatePresence>
-              {slots.map((slot) => (
-                <motion.div
-                  key={slot.id}
-                  initial={{ opacity: 0, x: -12 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="flex items-center gap-3 py-2 border-b last:border-b-0"
-                  style={{ borderColor: '#2a0808' }}
-                >
-                  <span style={{ color: slot.kind === 'empty' ? '#4a3020' : '#C9A84C' }}>
-                    {SLOT_ICON[slot.kind]}
-                  </span>
-                  <span
-                    className="text-base font-serif uppercase tracking-wider"
-                    style={{
-                      color: slot.kind === 'empty' ? '#4a3020' : '#C9A84C',
-                      fontStyle: slot.kind === 'empty' ? 'italic' : 'normal',
-                    }}
-                  >
-                    {slot.kind === 'empty' ? 'Empty seat' : slot.name}
-                  </span>
-                  {slot.kind === 'cpu' && (
-                    <span className="ml-auto text-xs uppercase tracking-wider" style={{ color: '#6b4c2a' }}>
-                      CPU
-                    </span>
-                  )}
-                </motion.div>
+              {(room?.players ?? []).map((p, i) => (
+                <PlayerRow key={p.id} player={p} index={i} />
+              ))}
+              {Array.from({ length: emptyCount }).map((_, i) => (
+                <EmptySlot key={`empty-${i}`} />
               ))}
             </AnimatePresence>
           </div>
 
-          {/* CPU fill hint */}
-          {!isJoining && emptyCount > 0 && (
+          {/* Status hint */}
+          {emptyCount > 0 && !isHost && (
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-sm font-serif text-center animate-pulse"
+              style={{ color: '#9b7060' }}
+            >
+              Waiting for the host to start the game…
+            </motion.p>
+          )}
+
+          {emptyCount > 0 && isHost && (
             <motion.p
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               className="text-sm font-serif text-center"
               style={{ color: '#9b7060' }}
             >
-              {isLobbyFull
-                ? 'All seats filled — ready to start.'
-                : `Waiting for players… Start now to fill ${emptyCount} seat${emptyCount > 1 ? 's' : ''} with CPU opponents.`
-              }
+              {`Waiting for players… Start now to fill ${emptyCount} seat${emptyCount > 1 ? 's' : ''} with CPU opponents.`}
             </motion.p>
           )}
 
-          {/* Start game — host only */}
-          {!isJoining && (
-            <Button onClick={handleStartGame} isLoading={isStarting} className="w-64">
+          {/* Start button — host only */}
+          {isHost && (
+            <Button
+              onClick={handleStartGame}
+              isLoading={isStarting}
+              disabled={status !== 'open'}
+              className="w-64"
+            >
               Start Game
             </Button>
           )}
-
-          {/* Joiner view */}
-          {isJoining && (
-            <p
-              className="text-sm font-serif text-center animate-pulse"
-              style={{ color: '#9b7060' }}
-            >
-              Waiting for the host to start the game…
-            </p>
-          )}
         </div>
 
-        <BackButton to="/menu" />
+        <BackButton onClick={handleBack} />
       </GameLayout>
     </PageTransition>
   )
