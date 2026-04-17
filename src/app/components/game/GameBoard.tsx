@@ -89,6 +89,8 @@ export interface GameSyncPayload {
   seatingCurrentIdx: number
   seatingQueue: Record<string, string[]>
   actions?: SyncAction[]
+  /** True when this payload represents the very first seating phase (not a police raid re-seat) */
+  isInitialSeating?: boolean
 }
 
 export interface GameBoardProps {
@@ -106,11 +108,13 @@ export interface GameBoardProps {
   onTurnEnd?: (payload: GameSyncPayload) => void
   /** Called when local player restarts or quits in multiplayer */
   onAbandon?: (reason: 'restart' | 'quit', playerName: string) => void
+  /** WebSocket connection status from parent — used to gate the initial state broadcast */
+  socketStatus?: string
   onReturnToHome: () => void
   onGameFinished?: (winnerId: string, winnerType: "HUMAN" | "CPU") => void
 }
 
-export default function GameBoard({ playerCount, seatingType = "automatic", gameMode = "hotseat", playerNames, localPlayerIndex, cpuPlayerIds, incomingSync, onTurnEnd, onAbandon, onReturnToHome, onGameFinished }: GameBoardProps) {
+export default function GameBoard({ playerCount, seatingType = "automatic", gameMode = "hotseat", playerNames, localPlayerIndex, cpuPlayerIds, incomingSync, onTurnEnd, onAbandon, socketStatus, onReturnToHome, onGameFinished }: GameBoardProps) {
   // In solo mode use default CPU IDs; in multiplayer use the explicit list from slots
   const botPlayerIds = cpuPlayerIds
     ?? (gameMode === "solo" ? Array.from({ length: playerCount - 1 }, (_, i) => `player${i + 2}`) : [])
@@ -204,6 +208,9 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   // Stores the first action of a two-action turn (displacement second play)
   const firstActionRef = useRef<SyncAction | null>(null)
 
+  // Prevents the initial broadcast from firing more than once (even if socketStatus flaps)
+  const initialBroadcastDone = useRef(false)
+
   // ── Multiplayer: apply state pushed from server ────────────────────────────
   useEffect(() => {
     if (!incomingSync) return
@@ -218,7 +225,8 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       setSeatingPlayerOrder(incomingSync.seatingPlayerOrder)
       setSeatingCurrentIdx(incomingSync.seatingCurrentIdx)
       setSeatingQueue(incomingSync.seatingQueue)
-      setIsInitialSeating(false)
+      // Preserve the isInitialSeating flag so handleSeatingConfirm takes the right path
+      setIsInitialSeating(incomingSync.isInitialSeating ?? false)
     } else {
       setSeatingPlayerOrder([])
       setSeatingQueue({})
@@ -255,21 +263,25 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     }
   }, [incomingSync]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Multiplayer: host broadcasts initial game state so all clients start in sync ──
+  // ── Multiplayer: host broadcasts initial game state once the WebSocket is open ──
+  // Gated on socketStatus === 'open' so the send is not silently dropped before the connection is ready.
   useEffect(() => {
-    if (gameMode === "multiplayer" && localPlayerIndex === 0) {
-      onTurnEnd?.({
-        gameState,
-        currentPlayerIndex: 0,
-        seatingPlayerOrder: seatingType === "manual" ? gameState.players.map((p) => p.id) : [],
-        seatingCurrentIdx: 0,
-        seatingQueue: seatingType === "manual"
-          ? Object.fromEntries(gameState.players.map((p) => [p.id, p.gangsters.map((g) => g.id)]))
-          : {},
-        actions: [],
-      })
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    if (gameMode !== "multiplayer" || localPlayerIndex !== 0) return
+    if (socketStatus !== 'open') return
+    if (initialBroadcastDone.current) return
+    initialBroadcastDone.current = true
+    onTurnEnd?.({
+      gameState,
+      currentPlayerIndex: 0,
+      seatingPlayerOrder: seatingType === "manual" ? gameState.players.map((p) => p.id) : [],
+      seatingCurrentIdx: 0,
+      seatingQueue: seatingType === "manual"
+        ? Object.fromEntries(gameState.players.map((p) => [p.id, p.gangsters.map((g) => g.id)]))
+        : {},
+      actions: [],
+      isInitialSeating: seatingType === "manual",
+    })
+  }, [socketStatus]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Tracks "playerId:turn" to prevent double-paying on phase changes (e.g. cancel)
   const paymentProcessedRef = useRef<string>("")

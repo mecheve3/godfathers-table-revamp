@@ -53,7 +53,7 @@ export default function Game() {
     sendAbandonRef.current?.(reason, playerName)
   }, [])
 
-  const { sendGameState, sendAbandon } = useRoomSocket(
+  const { sendGameState, sendAbandon, status: socketStatus } = useRoomSocket(
     isMultiplayer
       ? {
           roomCode: config?.roomCode ?? '',
@@ -86,6 +86,7 @@ export default function Game() {
       incomingSync={isMultiplayer ? incomingSync : undefined}
       onTurnEnd={isMultiplayer ? handleTurnEnd : undefined}
       onAbandon={isMultiplayer ? handleAbandon : undefined}
+      socketStatus={isMultiplayer ? socketStatus : undefined}
       onReturnToHome={handleReturnToHome}
     />
   )
