@@ -90,6 +90,8 @@ export interface SyncAction {
   seatAnim?: { seatIds: number[]; animClass: string; durationMs?: number }
   /** Sprite overlay to blink on affected seats */
   spriteAnim?: { seatIds: number[]; imagePath: string }
+  /** SFX to play on receiving clients — ensures audio sync in multiplayer */
+  sound?: { name: string; vol?: number; delayMs?: number }
 }
 
 /** Full game sync payload — game state + seating state + action feedback, broadcast after every turn */
@@ -144,6 +146,8 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
 
   // Confirmation dialog state
   const [confirmAction, setConfirmAction] = useState<null | 'restart' | 'quit'>(null)
+  // Discard confirmation — shows modal before entering SELECT_DISCARD phase
+  const [pendingDiscard, setPendingDiscard] = useState(false)
 
   const getInitialState = (): GameState => {
     let base: GameState
@@ -303,6 +307,13 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
               const spriteSeats = (act.cardType === "KNIFE" || act.cardType === "GUN")
                 ? seatIds.slice(1) : seatIds
               triggerSeatSprite(spriteSeats, imagePath, 800)
+            }
+          }
+          if (act.sound) {
+            if (act.sound.delayMs) {
+              setTimeout(() => playSFX(act.sound!.name, act.sound!.vol ?? 0.7), act.sound.delayMs)
+            } else {
+              playSFX(act.sound.name, act.sound.vol ?? 0.7)
             }
           }
         }, i * 800)
@@ -583,8 +594,16 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
           seatAnim: actionSummaries[i]?.animClass
             ? { seatIds: actionSummaries[i].seatIds, animClass: actionSummaries[i].animClass }
             : undefined,
+          sound: actionSummaries[i]?.soundName
+            ? { name: actionSummaries[i].soundName, vol: actionSummaries[i].soundName === "explodecake" ? 0.3 : 0.7, delayMs: actionSummaries[i].soundDelay }
+            : undefined,
         }))
-        onTurnEnd?.({ gameState: newState, currentPlayerIndex: nextPlayerIndex, seatingPlayerOrder: [], seatingCurrentIdx: 0, seatingQueue: {}, actions: botSyncActions })
+        const botNextBreakdown = calculatePaymentBreakdown(newState.players[nextPlayerIndex], newState.board)
+        const botNextPayment = botNextBreakdown.total
+        const botPaymentLog: Omit<LogEntry, "id" | "highlighted"> | undefined = botNextPayment > 0
+          ? { round: newState.turn, playerId: newState.players[nextPlayerIndex].id, playerName: newState.players[nextPlayerIndex].name, message: buildPaymentLog(newState.players[nextPlayerIndex].name, botNextPayment, botNextBreakdown), type: "payment" }
+          : undefined
+        onTurnEnd?.({ gameState: newState, currentPlayerIndex: nextPlayerIndex, seatingPlayerOrder: [], seatingCurrentIdx: 0, seatingQueue: {}, actions: botSyncActions, paymentLog: botPaymentLog })
       }, longestAnimMs)
     }, 4000)
 
@@ -592,7 +611,9 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   }, [currentPlayerIndex, gameState.currentPhase, gameMode, gameOver]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (gameMode !== "solo") return
+    // Run CPU auto-seating in solo AND multiplayer (on the host who runs bots)
+    // Hotseat has no bots so we skip it; shouldRunBots is false for non-host multiplayer clients
+    if (!shouldRunBots || gameMode === "hotseat") return
     if (gameState.currentPhase !== "SEATING_SELECT_GANGSTER") return
     const currentSeatingPlayerId = seatingPlayerOrder[seatingCurrentIdx]
     if (!currentSeatingPlayerId || !botPlayerIds.includes(currentSeatingPlayerId)) return
@@ -640,6 +661,11 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
 
   const handleSelectDiscardCard = () => {
     if (gameState.currentPhase !== "SELECT_CARD" || secondActionTaken) return
+    setPendingDiscard(true)
+  }
+
+  const confirmDiscard = () => {
+    setPendingDiscard(false)
     setGameState({ ...gameState, currentPhase: "SELECT_DISCARD" })
   }
 
@@ -665,6 +691,10 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     const currentPlayer = gameState.players[currentPlayerIndex]
     const card = currentPlayer.hand.find((c) => c.id === cardId)
     if (!card) return
+
+    // Eliminated players (no alive gangsters) cannot play any card
+    const hasAliveGangsters = currentPlayer.gangsters.some((g) => g.position !== null)
+    if (!hasAliveGangsters && gameState.currentPhase !== "SELECT_DISCARD") return
 
     if (gameState.currentPhase === "SELECT_DISCARD") { handleDiscardCard(cardId); return }
     if (gameState.currentPhase === "SELECT_CARD" && !isCardPlayable(gameState, currentPlayer.id, cardId)) {
@@ -739,6 +769,19 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       const vp: number[] = []; const cakePosition = gameState.board.find((pos) => pos.id === cake.seatId)
       if (cakePosition) { if (vd.includes("left")) vp.push(cakePosition.leftId); if (vd.includes("right")) vp.push(cakePosition.rightId); setValidTargets(vp) }
       if (vd.length === 0) { return }
+    }
+  }
+
+  /** Direct cake click — allows selecting a specific cake when multiple occupy the same seat */
+  const handleDirectCakeClick = (cakeId: string) => {
+    if (gameOver || !selectedCardId) return
+    if (gameState.currentPhase === "SELECT_CAKE") {
+      const validForCard = selectedCardId
+        ? (gameState.players[currentPlayerIndex].hand.find((c) => c.id === selectedCardId)?.type === "PASS_CAKE"
+            ? getValidCakesForPassing(gameState)
+            : getValidCakesForExploding(gameState))
+        : []
+      if (validForCard.includes(cakeId)) handleSelectCake(cakeId)
     }
   }
 
@@ -927,6 +970,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       logEntry: actionLogEntry,
       seatAnim: feedback.animClass ? { seatIds: feedback.seatIds, animClass: feedback.animClass } : undefined,
       spriteAnim: spritePath && feedback.seatIds.length > 0 ? { seatIds: feedback.seatIds, imagePath: spritePath } : undefined,
+      sound: feedback.soundName ? { name: feedback.soundName, vol: feedback.soundName === "explodecake" ? 0.3 : 0.7, delayMs: feedback.soundDelay } : undefined,
     }
 
     setSelectedCardId(null); setSelectedGangsterIndex(null); setSelectedDirection(null); setTargetPositionId(null)
@@ -1220,6 +1264,32 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         onRestart={() => setConfirmAction('restart')}
         onNewGame={() => setConfirmAction('quit')}
       />
+      {/* Discard confirmation modal */}
+      {pendingDiscard && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
+          <div className="bg-[#1a0c06] border border-[#C9A84C]/40 rounded-lg w-full max-w-sm p-6 flex flex-col gap-5">
+            <h2 className="text-[#F5AC0E] font-serif font-bold text-lg tracking-wide text-center">Discard a Card?</h2>
+            <p className="text-zinc-300 text-sm text-center leading-relaxed">
+              You will discard one card and draw a replacement. Your turn ends after discarding.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={confirmDiscard}
+                className="flex-1 px-4 py-2 rounded text-sm font-medium bg-[#C9A84C] text-[#1a0c06] hover:bg-[#F5AC0E] transition-colors font-semibold"
+              >
+                Discard
+              </button>
+              <button
+                onClick={() => setPendingDiscard(false)}
+                className="flex-1 px-4 py-2 rounded text-sm font-medium bg-zinc-700 text-white hover:bg-zinc-600 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {confirmAction && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
           <div className="bg-[#1a0c06] border border-[#C9A84C]/40 rounded-lg w-full max-w-sm p-6 flex flex-col gap-5">
@@ -1228,9 +1298,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
             </h2>
             <p className="text-zinc-300 text-sm text-center leading-relaxed">
               {gameMode === 'multiplayer'
-                ? confirmAction === 'restart'
-                  ? 'This will end the game for all players and redirect everyone to the menu.'
-                  : 'This will end the game for all players and redirect everyone to the menu.'
+                ? 'This will end the game for all players and redirect everyone to the menu.'
                 : confirmAction === 'restart'
                   ? 'Are you sure you want to restart? All progress will be lost.'
                   : 'Are you sure you want to leave?'
@@ -1326,6 +1394,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                         onClick={() => handlePositionClick(position.id)}
                         animClass={seatAnimations[position.id]}
                         spriteOverlay={seatSpriteOverlays[position.id]}
+                        onCakeClick={gameState.currentPhase === "SELECT_CAKE" ? handleDirectCakeClick : undefined}
                       />
                     ))}
                   </div>

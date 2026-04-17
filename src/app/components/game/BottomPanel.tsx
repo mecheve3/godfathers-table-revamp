@@ -100,8 +100,8 @@ export default function BottomPanel({
         <div className="md:w-1/2 max-w-[calc(25vw-1rem)]">
           <div className="mb-3 text-center">
             <span className="font-semibold text-[#F5AC0E]">{currentPlayer.name}'s Turn</span>
-            {isBotTurn && gameMode !== "multiplayer" && <span className="ml-2 text-xs text-zinc-400 animate-pulse">🤖 thinking...</span>}
-            {isBotTurn && gameMode === "multiplayer" && <span className="ml-2 text-xs text-zinc-400 animate-pulse">⏳ waiting...</span>}
+            {isBotTurn && gameMode !== "multiplayer" && <span className="ml-2 text-xs text-zinc-400 animate-pulse">thinking...</span>}
+            {isBotTurn && gameMode === "multiplayer" && <span className="ml-2 text-xs text-zinc-400 animate-pulse">waiting...</span>}
           </div>
 
           <div className="p-3 bg-gradient-to-b from-[#3D2314] to-[#2B1710] rounded-md mb-3 text-[#F5AC0E] text-sm">
@@ -148,54 +148,54 @@ export default function BottomPanel({
 
           <div className="space-y-2">
             {(gamePhase === "SELECT_GANGSTER" || gamePhase === "SELECT_CAKE") && (
-              <Btn onClick={onCancelAction} variant="secondary"><span>↩️</span> Cancel and select different card</Btn>
+              <Btn onClick={onCancelAction} variant="secondary">Cancel</Btn>
             )}
             {gamePhase === "SELECT_TARGET" && (selectedCard?.type === "KNIFE" || selectedCard?.type === "ORDER_CAKE") && (
-              <Btn onClick={onCancelAction} variant="secondary"><span>↩️</span> Cancel</Btn>
+              <Btn onClick={onCancelAction} variant="secondary">Cancel</Btn>
             )}
             {gamePhase === "SELECT_TARGET" && selectedCard?.type === "GUN" && (
               <div className="grid grid-cols-1 gap-2">
-                <Btn onClick={onConfirmAction} disabled={validTargets.length === 0}><span>🔫</span> Fire Gun</Btn>
-                <Btn onClick={onCancelAction} variant="secondary"><span>↩️</span> Cancel</Btn>
+                <Btn onClick={onConfirmAction} disabled={validTargets.length === 0}>Fire Gun</Btn>
+                <Btn onClick={onCancelAction} variant="secondary">Cancel</Btn>
               </div>
             )}
             {gamePhase === "CONFIRM_ACTION" && (
               <div className="grid grid-cols-2 gap-2">
-                <Btn onClick={onConfirmAction}><span>✅</span> Confirm</Btn>
-                <Btn onClick={onCancelAction} variant="secondary"><span>↩️</span> Back</Btn>
+                <Btn onClick={onConfirmAction}>Confirm</Btn>
+                <Btn onClick={onCancelAction} variant="secondary">Back</Btn>
               </div>
             )}
             {gamePhase === "SECOND_DISPLACEMENT" && (
               <div className="grid grid-cols-2 gap-2">
-                <Btn onClick={() => onSelectCard(currentPlayer.hand.find((c) => c.type === "DISPLACEMENT")?.id || "")} disabled={!canPlaySecondDisplacement}><span>🚶</span> Play Displacement</Btn>
-                <Btn onClick={onSkipSecondDisplacement} variant="secondary"><span>⏭️</span> Skip</Btn>
+                <Btn onClick={() => onSelectCard(currentPlayer.hand.find((c) => c.type === "DISPLACEMENT")?.id || "")} disabled={!canPlaySecondDisplacement}>Play Displacement</Btn>
+                <Btn onClick={onSkipSecondDisplacement} variant="secondary">Skip</Btn>
               </div>
             )}
             {gamePhase === "SELECT_DISCARD" && (
-              <Btn onClick={onCancelAction} variant="secondary"><span>↩️</span> Cancel discard</Btn>
+              <Btn onClick={onCancelAction} variant="secondary">Cancel discard</Btn>
             )}
             {gamePhase === "SELECT_PILL_TARGET_1" && (
-              <Btn onClick={onCancelAction} variant="secondary"><span>↩️</span> Cancel</Btn>
+              <Btn onClick={onCancelAction} variant="secondary">Cancel</Btn>
             )}
             {(gamePhase === "SELECT_PILL_TARGET_2" || gamePhase === "SELECT_PILL_TARGET_3") && (
               <div className="grid grid-cols-2 gap-2">
-                <Btn onClick={onSkipPill}><span>✅</span> Done</Btn>
-                <Btn onClick={onCancelAction} variant="secondary"><span>↩️</span> Cancel</Btn>
+                <Btn onClick={onSkipPill}>Done</Btn>
+                <Btn onClick={onCancelAction} variant="secondary">Cancel</Btn>
               </div>
             )}
             {gamePhase === "CONFIRM_PILLS" && (
               <div className="grid grid-cols-2 gap-2">
-                <Btn onClick={onConfirmAction}><span>✅</span> Confirm</Btn>
-                <Btn onClick={onCancelAction} variant="secondary"><span>↩️</span> Back</Btn>
+                <Btn onClick={onConfirmAction}>Confirm</Btn>
+                <Btn onClick={onCancelAction} variant="secondary">Back</Btn>
               </div>
             )}
             {gamePhase === "SEATING_SELECT_SEAT" && (
-              <Btn onClick={() => onSeatingBack?.()} variant="secondary"><span>↩️</span> Back — re-select gangster</Btn>
+              <Btn onClick={() => onSeatingBack?.()} variant="secondary">Back</Btn>
             )}
             {gamePhase === "SEATING_CONFIRM" && (
               <div className="grid grid-cols-2 gap-2">
-                <Btn onClick={() => onSeatingConfirm?.()}><span>✅</span> Confirm</Btn>
-                <Btn onClick={() => onSeatingBack?.()} variant="secondary"><span>↩️</span> Back</Btn>
+                <Btn onClick={() => onSeatingConfirm?.()}>Confirm</Btn>
+                <Btn onClick={() => onSeatingBack?.()} variant="secondary">Back</Btn>
               </div>
             )}
           </div>

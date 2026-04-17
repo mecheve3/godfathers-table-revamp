@@ -577,14 +577,13 @@ export const returnCardToHand = (gameState: GameState, playerId: string, cardId:
 // Get player color
 export const getPlayerColor = (playerId: string): string => {
   switch (playerId) {
-    case "player1":
-      return "#ff0000" // Red
-    case "player2":
-      return "#0000ff" // Blue
-    case "player3":
-      return "#ffcc00" // Yellow
-    default:
-      return "#888888" // Gray
+    case "player1": return "#ef4444" // Red
+    case "player2": return "#3b82f6" // Blue
+    case "player3": return "#facc15" // Yellow
+    case "player4": return "#22c55e" // Green
+    case "player5": return "#f97316" // Orange
+    case "player6": return "#a855f7" // Purple
+    default:        return "#888888"
   }
 }
 
@@ -1061,9 +1060,11 @@ export const calculatePaymentBreakdown = (player: Player, board: Position[]): Pa
     }
   })
 
-  const bar = businessCounts.BAR * 1000
-  const casino = businessCounts.GAMBLING_HOUSE * 1000
-  const stripClub = businessCounts.STRIP_CLUB * 1000
+  // Monopoly (2+ of same type) replaces the per-slot $1k income for that type:
+  // 1 bar = $1k, 2 bars (monopoly) = $4k total (not $2k + $4k bonus)
+  const bar = businessCounts.BAR >= 2 ? 0 : businessCounts.BAR * 1000
+  const casino = businessCounts.GAMBLING_HOUSE >= 2 ? 0 : businessCounts.GAMBLING_HOUSE * 1000
+  const stripClub = businessCounts.STRIP_CLUB >= 2 ? 0 : businessCounts.STRIP_CLUB * 1000
   let monopolyBonus = 0
   Object.values(businessCounts).forEach((count) => { if (count >= 2) monopolyBonus += 4000 })
 

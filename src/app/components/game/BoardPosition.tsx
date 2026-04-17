@@ -10,6 +10,8 @@ interface BoardPositionProps {
   animClass?: string
   /** Sprite image path to blink over this seat when an action targets it */
   spriteOverlay?: string
+  /** Called with a specific cake ID when a cake on this seat is clicked — enables multi-cake selection */
+  onCakeClick?: (cakeId: string) => void
 }
 
 const positionMap: Record<number, { x: number; y: number }> = {
@@ -76,7 +78,7 @@ const getGangsterTypeName = (type: GangsterType) => {
 const getGangsterImage = (playerId: string, type: GangsterType) =>
   `/images/players/${getTeam(playerId)}/${getGangsterTypeName(type)}.png`
 
-export default function BoardPosition({ position, gameState, selected, highlighted, onClick, animClass, spriteOverlay }: BoardPositionProps) {
+export default function BoardPosition({ position, gameState, selected, highlighted, onClick, animClass, spriteOverlay, onCakeClick }: BoardPositionProps) {
   const [cakes, setCakes] = useState<typeof gameState.cakes>([])
   const style = getPositionStyle(position.id)
 
@@ -141,9 +143,9 @@ export default function BoardPosition({ position, gameState, selected, highlight
             zIndex: 5,
           }}
           title={`Cake placed on round ${cake.roundPlaced} — explodes next round`}
-          onClick={onClick}
+          onClick={(e) => { e.stopPropagation(); if (onCakeClick) onCakeClick(cake.id); else onClick() }}
         >
-          🎂
+          <span className="text-xs font-black leading-none select-none" style={{ color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>B</span>
         </div>
       ))}
     </>
