@@ -73,6 +73,15 @@ function computeActionSeats(action: Action, state: GameState): ActionSummary {
   }
 }
 
+/** Full game sync payload — game state + seating state, broadcast after every turn */
+export interface GameSyncPayload {
+  gameState: GameState
+  currentPlayerIndex: number
+  seatingPlayerOrder: string[]
+  seatingCurrentIdx: number
+  seatingQueue: Record<string, string[]>
+}
+
 export interface GameBoardProps {
   playerCount: 3 | 4 | 5 | 6
   seatingType?: "automatic" | "manual"
@@ -82,21 +91,29 @@ export interface GameBoardProps {
   localPlayerIndex?: number
   /** Explicit list of CPU player IDs for bot AI (overrides solo-mode default) */
   cpuPlayerIds?: string[]
-  /** New game state pushed from the server (multiplayer sync) */
-  incomingState?: { gameState: GameState; currentPlayerIndex: number }
-  /** Called after every turn ends — used to broadcast state to other clients */
-  onTurnEnd?: (gameState: GameState, currentPlayerIndex: number) => void
+  /** Full sync payload pushed from the server (multiplayer) */
+  incomingSync?: GameSyncPayload
+  /** Called after every turn — broadcasts state to other clients */
+  onTurnEnd?: (payload: GameSyncPayload) => void
+  /** Called when local player restarts or quits in multiplayer */
+  onAbandon?: (reason: 'restart' | 'quit', playerName: string) => void
   onReturnToHome: () => void
   onGameFinished?: (winnerId: string, winnerType: "HUMAN" | "CPU") => void
 }
 
-export default function GameBoard({ playerCount, seatingType = "automatic", gameMode = "hotseat", playerNames, localPlayerIndex, cpuPlayerIds, incomingState, onTurnEnd, onReturnToHome, onGameFinished }: GameBoardProps) {
+export default function GameBoard({ playerCount, seatingType = "automatic", gameMode = "hotseat", playerNames, localPlayerIndex, cpuPlayerIds, incomingSync, onTurnEnd, onAbandon, onReturnToHome, onGameFinished }: GameBoardProps) {
   // In solo mode use default CPU IDs; in multiplayer use the explicit list from slots
   const botPlayerIds = cpuPlayerIds
     ?? (gameMode === "solo" ? Array.from({ length: playerCount - 1 }, (_, i) => `player${i + 2}`) : [])
 
   // In multiplayer, only the host (localPlayerIndex === 0) runs bot AI
   const shouldRunBots = gameMode !== "multiplayer" || localPlayerIndex === 0
+
+  // Local player's game ID (e.g. "player2")
+  const localPlayerId = localPlayerIndex !== undefined ? `player${localPlayerIndex + 1}` : undefined
+
+  // Confirmation dialog state
+  const [confirmAction, setConfirmAction] = useState<null | 'restart' | 'quit'>(null)
 
   const getInitialState = (): GameState => {
     let base: GameState
@@ -177,15 +194,47 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
 
   // ── Multiplayer: apply state pushed from server ────────────────────────────
   useEffect(() => {
-    if (!incomingState) return
-    setGameState(incomingState.gameState)
-    setCurrentPlayerIndex(incomingState.currentPlayerIndex)
-    // Clear any local selection state
+    if (!incomingSync) return
+    // Don't interrupt this client while they are mid-seating-action
+    if (gameState.currentPhase === "SEATING_SELECT_SEAT" || gameState.currentPhase === "SEATING_CONFIRM") return
+
+    setGameState(incomingSync.gameState)
+    setCurrentPlayerIndex(incomingSync.currentPlayerIndex)
+
+    // Restore seating state if included (police raid / initial seating)
+    if (incomingSync.seatingPlayerOrder.length > 0) {
+      setSeatingPlayerOrder(incomingSync.seatingPlayerOrder)
+      setSeatingCurrentIdx(incomingSync.seatingCurrentIdx)
+      setSeatingQueue(incomingSync.seatingQueue)
+      setIsInitialSeating(false)
+    } else {
+      setSeatingPlayerOrder([])
+      setSeatingQueue({})
+      setSeatingCurrentIdx(0)
+    }
+
+    // Clear selection state
     setSelectedCardId(null); setSelectedGangsterIndex(null); setSelectedDirection(null); setTargetPositionId(null)
     setValidGangsters([]); setValidTargets([]); setValidCakes([]); setValidDirections([])
     setPillsApplied(0); setPendingPillTargetIds([]); setValidPillTargets([])
     setSecondActionTaken(false)
-  }, [incomingState])
+    setSeatingSelectedGangsterId(null)
+  }, [incomingSync]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Multiplayer: host broadcasts initial game state so all clients start in sync ──
+  useEffect(() => {
+    if (gameMode === "multiplayer" && localPlayerIndex === 0) {
+      onTurnEnd?.({
+        gameState,
+        currentPlayerIndex: 0,
+        seatingPlayerOrder: seatingType === "manual" ? gameState.players.map((p) => p.id) : [],
+        seatingCurrentIdx: 0,
+        seatingQueue: seatingType === "manual"
+          ? Object.fromEntries(gameState.players.map((p) => [p.id, p.gangsters.map((g) => g.id)]))
+          : {},
+      })
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Tracks "playerId:turn" to prevent double-paying on phase changes (e.g. cancel)
   const paymentProcessedRef = useRef<string>("")
@@ -412,7 +461,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         setPillsApplied(0); setPendingPillTargetIds([]); setValidPillTargets([])
         setSecondActionTaken(false)
         // Broadcast bot turn result to other clients
-        onTurnEnd?.(newState, nextPlayerIndex)
+        onTurnEnd?.({ gameState: newState, currentPlayerIndex: nextPlayerIndex, seatingPlayerOrder: [], seatingCurrentIdx: 0, seatingQueue: {} })
       }, longestAnimMs)
     }, 4000)
 
@@ -460,6 +509,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         if ((newQueue[seatingPlayerOrder[candidate]] ?? []).length > 0) { nextIdx = candidate; break }
       }
       setSeatingCurrentIdx(nextIdx); newGameState.currentPhase = "SEATING_SELECT_GANGSTER"; setGameState(newGameState)
+      onTurnEnd?.({ gameState: newGameState, currentPlayerIndex: nextIdx, seatingPlayerOrder: seatingPlayerOrder, seatingCurrentIdx: nextIdx, seatingQueue: newQueue })
     }, 400)
 
     return () => clearTimeout(timer)
@@ -756,6 +806,8 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   const handleSeatingGangsterSelect = (gangsterId: string) => {
     const currentSeatingPlayerId = seatingPlayerOrder[seatingCurrentIdx]
     if (!currentSeatingPlayerId) return
+    // In multiplayer, only the player whose turn it is can select gangsters
+    if (localPlayerId && currentSeatingPlayerId !== localPlayerId) return
     const queue = seatingQueue[currentSeatingPlayerId] ?? []
     if (!queue.includes(gangsterId)) return
     setSeatingSelectedGangsterId(gangsterId)
@@ -789,12 +841,12 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       if (isInitialSeating) {
         const finalState = initializeGame(newGameState); finalState.currentPhase = "SELECT_CARD"
         setIsInitialSeating(false); setSeatingQueue({}); setSeatingPlayerOrder([]); setCurrentPlayerIndex(0); setGameState(finalState)
-        onTurnEnd?.(finalState, 0)
+        onTurnEnd?.({ gameState: finalState, currentPlayerIndex: 0, seatingPlayerOrder: [], seatingCurrentIdx: 0, seatingQueue: {} })
       } else {
         const raidingPlayerIdx = newGameState.players.findIndex((p) => p.id === seatingPlayerOrder[0])
         const nextIdx = getNextActivePlayerIndex(raidingPlayerIdx, newGameState.players)
         newGameState.currentPhase = "SELECT_CARD"; setSeatingQueue({}); setSeatingPlayerOrder([]); setCurrentPlayerIndex(nextIdx); setGameState(newGameState)
-        onTurnEnd?.(newGameState, nextIdx)
+        onTurnEnd?.({ gameState: newGameState, currentPlayerIndex: nextIdx, seatingPlayerOrder: [], seatingCurrentIdx: 0, seatingQueue: {} })
       }
       return
     }
@@ -805,7 +857,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       if ((newQueue[seatingPlayerOrder[candidate]] ?? []).length > 0) { nextIdx = candidate; break }
     }
     setSeatingCurrentIdx(nextIdx); newGameState.currentPhase = "SEATING_SELECT_GANGSTER"; setGameState(newGameState)
-    onTurnEnd?.(newGameState, nextIdx)
+    onTurnEnd?.({ gameState: newGameState, currentPlayerIndex: nextIdx, seatingPlayerOrder: seatingPlayerOrder, seatingCurrentIdx: nextIdx, seatingQueue: newQueue })
   }
 
   const handleCancelAction = () => {
@@ -844,7 +896,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     setPillsApplied(0); setPendingPillTargetIds([]); setValidPillTargets([]); setSecondActionTaken(false)
     setGameState(newGameState)
     // Broadcast state to other clients in multiplayer
-    onTurnEnd?.(newGameState, nextPlayerIndex)
+    onTurnEnd?.({ gameState: newGameState, currentPlayerIndex: nextPlayerIndex, seatingPlayerOrder: [], seatingCurrentIdx: 0, seatingQueue: {} })
   }
 
   const restartGame = () => {
@@ -883,7 +935,49 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
 
       <div className="flex flex-row flex-1 min-h-0 overflow-hidden">
         <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-          <TopPanel onRestart={restartGame} onNewGame={onReturnToHome} />
+          <TopPanel
+        onRestart={() => setConfirmAction('restart')}
+        onNewGame={() => setConfirmAction('quit')}
+      />
+      {confirmAction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
+          <div className="bg-[#1a0c06] border border-[#C9A84C]/40 rounded-lg w-full max-w-sm p-6 flex flex-col gap-5">
+            <h2 className="text-[#F5AC0E] font-serif font-bold text-lg tracking-wide text-center">
+              {confirmAction === 'restart' ? 'Restart Game?' : 'Leave Game?'}
+            </h2>
+            <p className="text-zinc-300 text-sm text-center leading-relaxed">
+              {gameMode === 'multiplayer'
+                ? confirmAction === 'restart'
+                  ? 'This will end the game for all players and redirect everyone to the menu.'
+                  : 'This will end the game for all players and redirect everyone to the menu.'
+                : confirmAction === 'restart'
+                  ? 'Are you sure you want to restart? All progress will be lost.'
+                  : 'Are you sure you want to leave?'
+              }
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  const currentName = gameState.players[currentPlayerIndex]?.name ?? 'A player'
+                  if (gameMode === 'multiplayer') onAbandon?.(confirmAction, currentName)
+                  if (confirmAction === 'restart') restartGame()
+                  else onReturnToHome()
+                  setConfirmAction(null)
+                }}
+                className="flex-1 px-4 py-2 rounded text-sm font-medium bg-red-700 text-white hover:bg-red-600 transition-colors"
+              >
+                {confirmAction === 'restart' ? 'Restart' : 'Leave'}
+              </button>
+              <button
+                onClick={() => setConfirmAction(null)}
+                className="flex-1 px-4 py-2 rounded text-sm font-medium bg-zinc-700 text-white hover:bg-zinc-600 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
           <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
             <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-hidden">

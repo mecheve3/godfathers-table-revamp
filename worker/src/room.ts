@@ -140,8 +140,8 @@ export class GameRoom implements DurableObject {
       // IN_GAME reconnect: send only to this client so they catch up
       this.send(server, { type: 'ROOM_STATE', room })
       // Also send the latest game state so they can resume immediately
-      const saved = await this.state.storage.get<{ gameState: unknown; currentPlayerIndex: number }>('gameState')
-      if (saved) this.send(server, { type: 'GAME_STATE', ...saved })
+      const saved = await this.state.storage.get<unknown>('gameState')
+      if (saved) this.send(server, { type: 'GAME_STATE', payload: saved })
     }
 
     return new Response(null, { status: 101, webSocket: client })
@@ -200,11 +200,15 @@ export class GameRoom implements DurableObject {
           this.send(ws, { type: 'ERROR', message: 'Game not in progress' })
           return
         }
-        const payload = { gameState: msg.gameState, currentPlayerIndex: msg.currentPlayerIndex }
-        // Persist so late-joiners / reconnects get the latest state
-        await this.state.storage.put('gameState', payload)
-        // Broadcast to everyone else — sender already applied the state locally
-        this.broadcastAll({ type: 'GAME_STATE', ...payload }, ws)
+        // Persist for reconnects
+        await this.state.storage.put('gameState', msg.payload)
+        // Broadcast to everyone else
+        this.broadcastAll({ type: 'GAME_STATE', payload: msg.payload }, ws)
+        break
+      }
+
+      case 'ABANDON_GAME': {
+        this.broadcastAll({ type: 'GAME_ABANDONED', playerName: msg.playerName, reason: msg.reason }, ws)
         break
       }
 

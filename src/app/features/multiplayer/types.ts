@@ -25,15 +25,17 @@ export interface RoomState {
 export type ClientMessage =
   | { type: 'START_GAME' }
   | { type: 'LEAVE_ROOM' }
-  | { type: 'GAME_ACTION'; gameState: unknown; currentPlayerIndex: number }
+  | { type: 'GAME_ACTION'; payload: unknown }
+  | { type: 'ABANDON_GAME'; reason: 'restart' | 'quit'; playerName: string }
 
 export type ServerMessage =
-  | { type: 'ROOM_STATE';    room: RoomState }
-  | { type: 'PLAYER_JOINED'; player: RoomPlayer }
-  | { type: 'PLAYER_LEFT';   playerId: string }
-  | { type: 'GAME_STARTED';  room: RoomState }
-  | { type: 'GAME_STATE';    gameState: unknown; currentPlayerIndex: number }
-  | { type: 'ERROR';         message: string }
+  | { type: 'ROOM_STATE';      room: RoomState }
+  | { type: 'PLAYER_JOINED';   player: RoomPlayer }
+  | { type: 'PLAYER_LEFT';     playerId: string }
+  | { type: 'GAME_STARTED';    room: RoomState }
+  | { type: 'GAME_STATE';      payload: unknown }
+  | { type: 'GAME_ABANDONED';  playerName: string; reason: 'restart' | 'quit' }
+  | { type: 'ERROR';           message: string }
 
 // ── Connection status ────────────────────────────────────────────────────────
 

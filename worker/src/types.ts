@@ -25,8 +25,10 @@ export type ClientMessage =
   | { type: 'JOIN_ROOM'; playerId: string; name: string }
   | { type: 'START_GAME' }
   | { type: 'LEAVE_ROOM' }
-  /** Current player broadcasts their new game state after each turn */
-  | { type: 'GAME_ACTION'; gameState: unknown; currentPlayerIndex: number }
+  /** Current player broadcasts full sync payload (game state + seating state) after each turn */
+  | { type: 'GAME_ACTION'; payload: unknown }
+  /** Host signals they are abandoning the current game */
+  | { type: 'ABANDON_GAME'; reason: 'restart' | 'quit'; playerName: string }
 
 // ── Server → Client messages ─────────────────────────────────────────────────
 
@@ -35,6 +37,8 @@ export type ServerMessage =
   | { type: 'PLAYER_JOINED'; player: RoomPlayer }
   | { type: 'PLAYER_LEFT';   playerId: string }
   | { type: 'GAME_STARTED';  room: RoomState }
-  /** Latest game state pushed to all clients (including the sender, for reconnects) */
-  | { type: 'GAME_STATE';    gameState: unknown; currentPlayerIndex: number }
+  /** Latest sync payload pushed to all clients */
+  | { type: 'GAME_STATE';    payload: unknown }
+  /** Another player abandoned the game */
+  | { type: 'GAME_ABANDONED'; playerName: string; reason: 'restart' | 'quit' }
   | { type: 'ERROR';         message: string }

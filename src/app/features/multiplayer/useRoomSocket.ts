@@ -8,14 +8,16 @@ export interface UseRoomSocketOptions {
   playerName: string
   onRoomState?: (room: RoomState) => void
   onGameStarted?: (room: RoomState) => void
-  onGameState?: (gameState: unknown, currentPlayerIndex: number) => void
+  onGameState?: (payload: unknown) => void
+  onGameAbandoned?: (playerName: string, reason: string) => void
   onError?: (message: string) => void
 }
 
 export interface UseRoomSocketResult {
   status: SocketStatus
   send: (msg: ClientMessage) => void
-  sendGameState: (gameState: unknown, currentPlayerIndex: number) => void
+  sendGameState: (payload: unknown) => void
+  sendAbandon: (reason: 'restart' | 'quit', playerName: string) => void
   disconnect: () => void
 }
 
@@ -26,15 +28,17 @@ export function useRoomSocket({
   onRoomState,
   onGameStarted,
   onGameState,
+  onGameAbandoned,
   onError,
 }: UseRoomSocketOptions): UseRoomSocketResult {
   const [status, setStatus] = useState<SocketStatus>('idle')
   const wsRef = useRef<WebSocket | null>(null)
   const intentionalClose = useRef(false)
 
-  // Keep callbacks in refs so the socket handler always calls the latest version
   const onGameStateRef = useRef(onGameState)
+  const onGameAbandonedRef = useRef(onGameAbandoned)
   useEffect(() => { onGameStateRef.current = onGameState }, [onGameState])
+  useEffect(() => { onGameAbandonedRef.current = onGameAbandoned }, [onGameAbandoned])
 
   useEffect(() => {
     if (!roomCode || !playerId) return
@@ -64,12 +68,14 @@ export function useRoomSocket({
           onGameStarted?.(msg.room)
           break
         case 'GAME_STATE':
-          onGameStateRef.current?.(msg.gameState, msg.currentPlayerIndex)
+          onGameStateRef.current?.(msg.payload)
+          break
+        case 'GAME_ABANDONED':
+          onGameAbandonedRef.current?.(msg.playerName, msg.reason)
           break
         case 'ERROR':
           onError?.(msg.message)
           break
-        // PLAYER_JOINED / PLAYER_LEFT handled via ROOM_STATE broadcast
       }
     }
 
@@ -96,9 +102,15 @@ export function useRoomSocket({
     }
   }, [])
 
-  const sendGameState = useCallback((gameState: unknown, currentPlayerIndex: number) => {
+  const sendGameState = useCallback((payload: unknown) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: 'GAME_ACTION', gameState, currentPlayerIndex }))
+      wsRef.current.send(JSON.stringify({ type: 'GAME_ACTION', payload }))
+    }
+  }, [])
+
+  const sendAbandon = useCallback((reason: 'restart' | 'quit', pName: string) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'ABANDON_GAME', reason, playerName: pName }))
     }
   }, [])
 
@@ -107,5 +119,5 @@ export function useRoomSocket({
     wsRef.current?.close(1000, 'User left')
   }, [])
 
-  return { status, send, sendGameState, disconnect }
+  return { status, send, sendGameState, sendAbandon, disconnect }
 }
