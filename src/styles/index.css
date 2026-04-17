@@ -4,8 +4,8 @@
 
 /* ── Game board seat animations ────────────────────────────────────────────── */
 @keyframes seat-blink-danger {
-  0%,  100% { opacity: 1;    filter: drop-shadow(0 0 4px  rgb(239 68 68 / 1));   }
-  37.5%, 62.5% { opacity: 0.2; filter: drop-shadow(0 0 14px rgb(239 68 68 / 0.8)); }
+  0%, 100%          { opacity: 1;   filter: drop-shadow(0 0 6px  rgb(239 68 68 / 1));    }
+  20%, 40%, 60%, 80% { opacity: 0.1; filter: drop-shadow(0 0 22px rgb(239 68 68 / 1)); }
 }
 @keyframes seat-blink-neutral {
   0%,  100% { opacity: 1;    filter: drop-shadow(0 0 4px  rgb(96 165 250 / 1));   }
@@ -23,7 +23,7 @@
   0%,  100% { opacity: 1;    filter: drop-shadow(0 0 4px  rgb(167 139 250 / 1));   }
   37.5%, 62.5% { opacity: 0.2; filter: drop-shadow(0 0 14px rgb(167 139 250 / 0.8)); }
 }
-.seat-anim-danger  { animation: seat-blink-danger  320ms ease-in-out 3; }
+.seat-anim-danger  { animation: seat-blink-danger  400ms ease-in-out 5; }
 .seat-anim-neutral { animation: seat-blink-neutral 320ms ease-in-out 3; }
 .seat-anim-utility { animation: seat-blink-utility 320ms ease-in-out 3; }
 .seat-anim-money   { animation: seat-blink-money   320ms ease-in-out 3; }
@@ -63,12 +63,12 @@
 /* ── Card play center flash ─────────────────────────────────────────────────── */
 @keyframes card-play-flash {
   0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.65); }
-  18%  { opacity: 1; transform: translate(-50%, -50%) scale(1.04); }
-  72%  { opacity: 1; transform: translate(-50%, -50%) scale(1);    }
+  12%  { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+  75%  { opacity: 1; transform: translate(-50%, -50%) scale(1);    }
   100% { opacity: 0; transform: translate(-50%, -50%) scale(0.92); }
 }
 .card-play-flash {
-  animation: card-play-flash 1.4s ease-out forwards;
+  animation: card-play-flash 2s ease-out forwards;
   position: absolute;
   top: 50%;
   left: 50%;

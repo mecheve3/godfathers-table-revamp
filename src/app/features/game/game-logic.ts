@@ -1253,9 +1253,7 @@ export const performAction = (gameState: GameState, action: Action): GameState =
         newGameState.removedCards.push(raidCard)
       }
 
-      // Clear cakes from the board too (the board is being reset)
-      newGameState.cakes = []
-
+      // Cakes remain on the board — gangsters are cleared but bombs stay.
       // Enter seating phase
       newGameState.currentPhase = "SEATING_SELECT_GANGSTER"
       break

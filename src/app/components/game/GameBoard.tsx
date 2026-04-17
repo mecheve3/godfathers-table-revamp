@@ -150,7 +150,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
 
   const showCenterCard = (cardType: string, playerId: string) => {
     setCenterCard({ cardType, playerId })
-    setTimeout(() => setCenterCard(null), 1400)
+    setTimeout(() => setCenterCard(null), 2000)
   }
 
   const triggerSeatAnimation = (seatIds: number[], animClass: string, durationMs = 960) => {
@@ -208,7 +208,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         for (const cake of explodingCakes) {
           playSFX("explodecake", 0.3)
           const cakePos = gameState.board.find((p) => p.id === cake.seatId)
-          if (cakePos) triggerSeatAnimation([cakePos.id, cakePos.leftId, cakePos.rightId].filter((s): s is number => s != null), "seat-anim-danger", 960)
+          if (cakePos) triggerSeatAnimation([cakePos.id, cakePos.leftId, cakePos.rightId].filter((s): s is number => s != null), "seat-anim-danger", 2000)
         }
         addLogEntry({ round: gameState.turn, playerId: currentPlayer.id, playerName: currentPlayer.name, message: buildExplosionLog(currentPlayer.name, currentPlayer.id, gameState, stateAfterExplosions), type: "explosion" })
       }
@@ -342,31 +342,53 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       const latestState = gameStateRef.current
       if (latestState.currentPhase !== "SELECT_CARD") return
       const { newState, nextPlayerIndex, logs, actionSummaries, logEntryData, playedCards } = executeSingleBotTurn(latestState, currentPlayerIndex)
-      // Stagger each action's SFX/animation by 1200ms so they don't overlap
+
+      // Timing constants
+      const ACTION_STAGGER = 2400    // ms between each action's visual effects
+      const DANGER_ANIM_MS = 2000   // duration of elimination animation (matches CSS)
+      const OTHER_ANIM_MS  = 960    // duration of non-danger animations
+
+      // Stagger visual effects — animations play over the OLD board state so the
+      // user can clearly see who is being shot / moved before the board updates.
       actionSummaries.forEach((summary, i) => {
         setTimeout(() => {
-          if (summary.soundName === "policeraid") { playSFX("policeraid", 0.7); setPoliceRaidActive(true); setTimeout(() => setPoliceRaidActive(false), 1800) }
-          else {
-            triggerSeatAnimation(summary.seatIds, summary.animClass, 960)
+          if (summary.soundName === "policeraid") {
+            playSFX("policeraid", 0.7); setPoliceRaidActive(true)
+            setTimeout(() => setPoliceRaidActive(false), 1800)
+          } else {
+            const dur = summary.animClass === "seat-anim-danger" ? DANGER_ANIM_MS : OTHER_ANIM_MS
+            triggerSeatAnimation(summary.seatIds, summary.animClass, dur)
             if (summary.soundName) {
               const vol = summary.soundName === "explodecake" ? 0.3 : 0.7
               playSFX(summary.soundName, vol, summary.soundDelay)
             }
           }
-        }, i * 1800)
+        }, i * ACTION_STAGGER)
       })
       playedCards.forEach((pc, i) => {
-        setTimeout(() => showCenterCard(pc.cardType, pc.playerId), i * 1800)
+        setTimeout(() => showCenterCard(pc.cardType, pc.playerId), i * ACTION_STAGGER)
       })
+
+      // Log entries don't need visual sync — write them immediately
       for (const entry of logEntryData) addLogEntry(entry)
       setBotLog((prev) => [...prev.slice(-80), ...logs])
-      setActiveBotPlayerId(null)
-      setCurrentPlayerIndex(nextPlayerIndex)
-      setGameState(newState)
-      setSelectedCardId(null); setSelectedGangsterIndex(null); setSelectedDirection(null); setTargetPositionId(null)
-      setValidGangsters([]); setValidTargets([]); setValidCakes([]); setValidDirections([])
-      setPillsApplied(0); setPendingPillTargetIds([]); setValidPillTargets([])
-      setSecondActionTaken(false)
+
+      // Delay board state update until ALL animations have finished.
+      // This keeps the pre-action board visible while effects play so the
+      // player can see eliminations happen on the correct gangsters.
+      const longestAnimMs = actionSummaries.length > 0
+        ? (actionSummaries.length - 1) * ACTION_STAGGER + DANGER_ANIM_MS
+        : 0
+
+      setTimeout(() => {
+        setActiveBotPlayerId(null)
+        setCurrentPlayerIndex(nextPlayerIndex)
+        setGameState(newState)
+        setSelectedCardId(null); setSelectedGangsterIndex(null); setSelectedDirection(null); setTargetPositionId(null)
+        setValidGangsters([]); setValidTargets([]); setValidCakes([]); setValidDirections([])
+        setPillsApplied(0); setPendingPillTargetIds([]); setValidPillTargets([])
+        setSecondActionTaken(false)
+      }, longestAnimMs)
     }, 4000)
 
     return () => { clearTimeout(timer); setActiveBotPlayerId(null) }
@@ -660,7 +682,8 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     } else { return }
 
     const feedback = computeActionSeats(action, gameState)
-    triggerSeatAnimation(feedback.seatIds, feedback.animClass, 960)
+    const feedbackDur = feedback.animClass === "seat-anim-danger" ? 2000 : 960
+    triggerSeatAnimation(feedback.seatIds, feedback.animClass, feedbackDur)
     if (feedback.soundName) {
       const vol = feedback.soundName === "explodecake" ? 0.3 : 0.7
       playSFX(feedback.soundName, vol, feedback.soundDelay)
