@@ -30,7 +30,7 @@ interface BottomPanelProps {
   onSeatingConfirm?: () => void
   onSeatingBack?: () => void
   humanPlayer?: Player
-  gameMode?: "hotseat" | "solo"
+  gameMode?: "hotseat" | "solo" | "multiplayer"
   botLog?: string[]
   newlyDealtCardIds?: string[]
 }
@@ -48,8 +48,14 @@ export default function BottomPanel({
 
   if (gameOver) return null
 
-  const isBotTurn = gameMode === "solo" && currentPlayer.id !== "player1"
-  const handPlayer = (gameMode === "solo" && humanPlayer) ? humanPlayer : currentPlayer
+  // multiplayer: not your turn when the current player isn't the local human player
+  // solo: not your turn when a bot is playing
+  const isBotTurn =
+    gameMode === "multiplayer" ? (humanPlayer ? currentPlayer.id !== humanPlayer.id : false)
+    : gameMode === "solo" ? currentPlayer.id !== "player1"
+    : false
+  // Always show the local player's hand (humanPlayer when in solo/multiplayer; current player in hotseat)
+  const handPlayer = humanPlayer ?? currentPlayer
 
   const Btn = ({ onClick, disabled, children, variant = "primary" }: { onClick: () => void; disabled?: boolean; children: React.ReactNode; variant?: "primary" | "secondary" }) => (
     <button
@@ -94,11 +100,13 @@ export default function BottomPanel({
         <div className="md:w-1/2 max-w-[calc(25vw-1rem)]">
           <div className="mb-3 text-center">
             <span className="font-semibold text-[#F5AC0E]">{currentPlayer.name}'s Turn</span>
-            {isBotTurn && <span className="ml-2 text-xs text-zinc-400 animate-pulse">🤖 thinking...</span>}
+            {isBotTurn && gameMode !== "multiplayer" && <span className="ml-2 text-xs text-zinc-400 animate-pulse">🤖 thinking...</span>}
+            {isBotTurn && gameMode === "multiplayer" && <span className="ml-2 text-xs text-zinc-400 animate-pulse">⏳ waiting...</span>}
           </div>
 
           <div className="p-3 bg-gradient-to-b from-[#3D2314] to-[#2B1710] rounded-md mb-3 text-[#F5AC0E] text-sm">
-            {isBotTurn && <p className="text-center text-zinc-400">Bot is taking its turn...</p>}
+            {isBotTurn && gameMode !== "multiplayer" && <p className="text-center text-zinc-400">Bot is taking its turn...</p>}
+            {isBotTurn && gameMode === "multiplayer" && <p className="text-center text-zinc-400">Waiting for {currentPlayer.name} to play…</p>}
             {!isBotTurn && gamePhase === "SELECT_CARD" && <p className="text-center">Select a card from your hand to play</p>}
             {gamePhase === "SELECT_GANGSTER" && selectedCard && (
               <div className="space-y-1">

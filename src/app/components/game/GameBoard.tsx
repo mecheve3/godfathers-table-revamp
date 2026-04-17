@@ -76,16 +76,20 @@ function computeActionSeats(action: Action, state: GameState): ActionSummary {
 export interface GameBoardProps {
   playerCount: 3 | 4 | 5 | 6
   seatingType?: "automatic" | "manual"
-  gameMode?: "hotseat" | "solo"
+  gameMode?: "hotseat" | "solo" | "multiplayer"
   playerNames?: string[]
+  /** 0-based index of the local human player (set in multiplayer mode) */
+  localPlayerIndex?: number
+  /** Explicit list of CPU player IDs for bot AI (overrides solo-mode default) */
+  cpuPlayerIds?: string[]
   onReturnToHome: () => void
   onGameFinished?: (winnerId: string, winnerType: "HUMAN" | "CPU") => void
 }
 
-export default function GameBoard({ playerCount, seatingType = "automatic", gameMode = "hotseat", playerNames, onReturnToHome, onGameFinished }: GameBoardProps) {
-  const botPlayerIds = gameMode === "solo"
-    ? Array.from({ length: playerCount - 1 }, (_, i) => `player${i + 2}`)
-    : []
+export default function GameBoard({ playerCount, seatingType = "automatic", gameMode = "hotseat", playerNames, localPlayerIndex, cpuPlayerIds, onReturnToHome, onGameFinished }: GameBoardProps) {
+  // In solo mode use default CPU IDs; in multiplayer use the explicit list from slots
+  const botPlayerIds = cpuPlayerIds
+    ?? (gameMode === "solo" ? Array.from({ length: playerCount - 1 }, (_, i) => `player${i + 2}`) : [])
 
   const getInitialState = (): GameState => {
     let base: GameState
@@ -970,7 +974,13 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
             {!gameOver && (
               <BottomPanel
                 currentPlayer={gameState.players[currentPlayerIndex]}
-                humanPlayer={gameMode === "solo" ? gameState.players.find((p) => p.id === "player1") : undefined}
+                humanPlayer={
+                  localPlayerIndex !== undefined
+                    ? gameState.players[localPlayerIndex]       // multiplayer: always local player
+                    : gameMode === "solo"
+                      ? gameState.players.find((p) => p.id === "player1")  // solo: player1
+                      : undefined
+                }
                 gameMode={gameMode}
                 botLog={botLog}
                 selectedGangster={selectedGangster}

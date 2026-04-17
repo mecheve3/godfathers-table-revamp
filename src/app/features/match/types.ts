@@ -13,6 +13,8 @@ export type MatchConfig = {
   }
   /** Final filled player slots — set just before navigating to /game */
   slots?: LobbySlot[]
+  /** Index (0-based) of the local human player in the slots array */
+  localPlayerIndex?: number
 }
 
 /** Cleanly separates who is sitting in each slot. */

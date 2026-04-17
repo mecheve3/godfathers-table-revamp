@@ -88,15 +88,26 @@ export default function MatchLobby() {
   const handleGameStarted = useCallback((r: RoomState) => {
     setRoom(r)
     toast.success('Game starting!')
-    // Convert room players to lobby slots and navigate
-    const slots = r.players.map((p, i) => ({
+    const slots = r.players.map((p) => ({
       id: p.id,
       name: p.name,
       kind: p.isHost ? 'host' as const : p.type === 'CPU' ? 'cpu' as const : 'human' as const,
     }))
-    setConfig({ ...config!, slots })
+    // Find which slot index the local player occupies — this becomes their player identity in-game
+    const localPlayerIndex = r.players.findIndex((p) => p.id === playerId)
+    setConfig({
+      ...config!,
+      slots,
+      localPlayerIndex: localPlayerIndex >= 0 ? localPlayerIndex : 0,
+      // Ensure settings.maxPlayers is always set correctly for both host and joiner
+      settings: {
+        maxPlayers: r.maxPlayers,
+        seating: config?.settings?.seating ?? 'automatic',
+        isPrivate: false,
+      },
+    })
     navigate('/game')
-  }, [config, navigate, setConfig])
+  }, [config, playerId, navigate, setConfig])
 
   const handleError = useCallback((msg: string) => toast.error(msg), [])
 
