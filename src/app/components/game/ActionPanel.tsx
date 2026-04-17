@@ -68,30 +68,32 @@ export default function ActionPanel({
 
   return (
     <div className={`border-2 ${playerColor} h-full flex flex-col bg-gradient-to-b from-[#3D2314] to-[#2B1710] overflow-hidden`}>
-      {/* Fixed top: standings (game over) or player dashboards + bank */}
-      <div className="flex-shrink-0 p-4 space-y-2 text-[#F5AC0E]">
+      {/* Top section: standings (game over) OR player dashboards + bank — scrollable if overflow */}
+      <div className="flex-shrink-0 max-h-[58%] overflow-y-auto game-log-scroll text-[#F5AC0E]">
         {gameOver ? (
-          <div className="p-4 bg-zinc-700 rounded-md text-center">
-            <h3 className="font-bold text-xl mb-2">Game Over!</h3>
-            <div className="space-y-4">
-              <h4 className="font-semibold text-lg">Final Standings</h4>
-              <div className="space-y-2 mt-2">
-                {finalStandings.map((standing, index) => (
-                  <div key={index} className={`p-2 rounded-md ${index === 0 ? "bg-yellow-900/30 border border-yellow-500" : "bg-zinc-800"}`}>
-                    <div className="flex justify-between items-center">
-                      <span className="font-medium">{standing.rank}. {standing.player}</span>
-                      <span className="text-green-400 font-bold">${standing.money.toLocaleString()}</span>
+          <div className="p-4">
+            <div className="p-4 bg-zinc-700 rounded-md text-center">
+              <h3 className="font-bold text-xl mb-2">Game Over!</h3>
+              <div className="space-y-4">
+                <h4 className="font-semibold text-lg">Final Standings</h4>
+                <div className="space-y-2 mt-2">
+                  {finalStandings.map((standing, index) => (
+                    <div key={index} className={`p-2 rounded-md ${index === 0 ? "bg-yellow-900/30 border border-yellow-500" : "bg-zinc-800"}`}>
+                      <div className="flex justify-between items-center">
+                        <span className="font-medium">{standing.rank}. {standing.player}</span>
+                        <span className="text-green-400 font-bold">${standing.money.toLocaleString()}</span>
+                      </div>
+                      {standing.aliveGangsters !== undefined && (
+                        <div className="text-xs text-gray-400 mt-1 text-left">Gangsters remaining: {standing.aliveGangsters}</div>
+                      )}
                     </div>
-                    {standing.aliveGangsters !== undefined && (
-                      <div className="text-xs text-gray-400 mt-1 text-left">Gangsters remaining: {standing.aliveGangsters}</div>
-                    )}
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
           </div>
         ) : (
-          <>
+          <div className="p-4 space-y-2">
             <div className="space-y-3">
               {gameState.players.slice(0, playerCount).map((player, index) => (
                 <PlayerDashboard
@@ -112,11 +114,11 @@ export default function ActionPanel({
                 <span className="text-[#F5AC0E] font-bold">${gameState.bankMoney.toLocaleString()}</span>
               </div>
             </div>
-          </>
+          </div>
         )}
       </div>
 
-      {/* Game log — takes remaining height */}
+      {/* Game log — always gets the remaining height */}
       {!gameOver && (
         <div className="flex flex-col flex-1 min-h-0 border-t border-zinc-700 overflow-hidden">
           <div className="flex-shrink-0 px-3 py-1.5 flex items-center gap-1.5">
