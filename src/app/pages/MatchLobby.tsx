@@ -74,7 +74,8 @@ export default function MatchLobby() {
   const playerId  = config?.hostId ?? ''
   const playerName = config?.playerName ?? 'Player'
   const isHost    = config?.mode === 'create'
-  const maxPlayers = config?.settings?.maxPlayers ?? 4
+  // Use server's authoritative maxPlayers once we have room state; fall back to config while connecting
+  const maxPlayers = room?.maxPlayers ?? config?.settings?.maxPlayers ?? 4
 
   const [room, setRoom] = useState<RoomState | null>(null)
   const [copied, setCopied] = useState(false)
