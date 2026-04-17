@@ -136,6 +136,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   const [seatAnimations, setSeatAnimations] = useState<Record<number, string>>({})
   const [policeRaidActive, setPoliceRaidActive] = useState(false)
   const [logEntries, setLogEntries] = useState<LogEntry[]>([])
+  const [activeBotPlayerId, setActiveBotPlayerId] = useState<string | null>(null)
 
   const addLogEntry = (data: Omit<LogEntry, "id" | "highlighted">) => {
     const id = `log-${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -196,7 +197,6 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
           const cakePos = gameState.board.find((p) => p.id === cake.seatId)
           if (cakePos) triggerSeatAnimation([cakePos.id, cakePos.leftId, cakePos.rightId].filter((s): s is number => s != null), "seat-anim-danger", 960)
         }
-        toast.error(`💥 ${explodingCakes.length} cake${explodingCakes.length > 1 ? "s" : ""} exploded!`)
         addLogEntry({ round: gameState.turn, playerId: currentPlayer.id, playerName: currentPlayer.name, message: buildExplosionLog(currentPlayer.name, currentPlayer.id, gameState, stateAfterExplosions), type: "explosion" })
       }
     }
@@ -215,7 +215,6 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         updatedPlayers[currentPlayerIndex] = { ...currentPlayer, money: currentPlayer.money + payment }
         setGameState({ ...gameState, players: updatedPlayers, bankMoney: Math.max(0, gameState.bankMoney - payment) })
         if (gameMode !== "solo" || currentPlayer.id === "player1") playSFX("bank", 0.7)
-        toast.success(`${currentPlayer.name} received $${payment.toLocaleString()}`)
         addLogEntry({ round: gameState.turn, playerId: currentPlayer.id, playerName: currentPlayer.name, message: buildPaymentLog(currentPlayer.name, payment), type: "payment" })
       }
     }
@@ -242,7 +241,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       const standings = sortedPlayers.map((p, i) => ({ player: p.name, money: p.money, aliveGangsters: p.gangsters.filter((g) => g.position !== null).length, rank: i + 1 }))
       setFinalStandings(standings)
       const winner = sortedPlayers[0]
-      toast.success(`Game Over! ${winner.name} wins with $${winner.money.toLocaleString()}!`)
+      addLogEntry({ round: gameState.turn, playerId: winner.id, playerName: winner.name, message: `Game Over — ${winner.name} wins with $${winner.money.toLocaleString()}!`, type: "system" })
       const winnerType: "HUMAN" | "CPU" = botPlayerIds.includes(winner.id) ? "CPU" : "HUMAN"
       onGameFinished?.(winner.id, winnerType)
     }
@@ -321,6 +320,9 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     if (!botPlayerIds.includes(currentPlayer.id)) return
     if (gameState.currentPhase !== "SELECT_CARD") return
 
+    // Show which bot is playing immediately — before the thinking delay
+    setActiveBotPlayerId(currentPlayer.id)
+
     const timer = setTimeout(() => {
       const latestState = gameStateRef.current
       if (latestState.currentPhase !== "SELECT_CARD") return
@@ -340,6 +342,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       })
       for (const entry of logEntryData) addLogEntry(entry)
       setBotLog((prev) => [...prev.slice(-80), ...logs])
+      setActiveBotPlayerId(null)
       setCurrentPlayerIndex(nextPlayerIndex)
       setGameState(newState)
       setSelectedCardId(null); setSelectedGangsterIndex(null); setSelectedDirection(null); setTargetPositionId(null)
@@ -348,7 +351,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       setSecondActionTaken(false)
     }, 2500)
 
-    return () => clearTimeout(timer)
+    return () => { clearTimeout(timer); setActiveBotPlayerId(null) }
   }, [currentPlayerIndex, gameState.currentPhase, gameMode, gameOver]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -633,7 +636,8 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       setSeatingPlayerOrder(rotated); setSeatingCurrentIdx(0); setSeatingQueue(queue); setSeatingSelectedGangsterId(null); setIsInitialSeating(false)
       setSelectedCardId(null); setSelectedGangsterIndex(null); setSelectedDirection(null); setTargetPositionId(null)
       setValidGangsters([]); setValidTargets([]); setValidCakes([]); setValidDirections([])
-      setGameState(newGameState); toast.warning("Police Raid! All gangsters cleared. Re-seat them."); return
+      addLogEntry({ round: gameState.turn, playerId: currentPlayer.id, playerName: currentPlayer.name, message: `${currentPlayer.name} triggers Police Raid — all gangsters cleared! Re-seating begins.`, type: "system" })
+      setGameState(newGameState); return
     }
 
     if (card.type === "ORDER_CAKE") { if (targetPositionId) action.targetPositionId = targetPositionId }
@@ -782,7 +786,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     setSelectedDirection(null); setTargetPositionId(null); setGameOver(false)
     setValidGangsters([]); setValidTargets([]); setValidCakes([]); setValidDirections([])
     setPillsApplied(0); setPendingPillTargetIds([]); setValidPillTargets([])
-    setFinalStandings([]); setSecondActionTaken(false); setBotLog([]); setSeatAnimations([]); setPoliceRaidActive(false); setLogEntries([])
+    setFinalStandings([]); setSecondActionTaken(false); setBotLog([]); setSeatAnimations([]); setPoliceRaidActive(false); setLogEntries([]); setActiveBotPlayerId(null)
     setSeatingSelectedGangsterId(null); setSeatingCurrentIdx(0)
     if (seatingType === "manual") {
       const order = newGameState.players.map((p) => p.id)
@@ -830,6 +834,20 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                       backgroundColor: "#2B1710",
                     }}
                   >
+                    {/* CPU turn indicator — shows which bot is playing */}
+                    {activeBotPlayerId && (() => {
+                      const botPlayer = gameState.players.find((p) => p.id === activeBotPlayerId)
+                      const colorMap: Record<string, string> = { player1: "#ef4444", player2: "#3b82f6", player3: "#facc15", player4: "#22c55e", player5: "#f97316", player6: "#a855f7" }
+                      const color = colorMap[activeBotPlayerId] ?? "#9ca3af"
+                      return (
+                        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-zinc-900/90 backdrop-blur-sm" style={{ border: `1.5px solid ${color}` }}>
+                          <span className="w-2.5 h-2.5 rounded-full animate-pulse flex-shrink-0" style={{ backgroundColor: color }} />
+                          <span className="text-white font-semibold text-sm leading-none">{botPlayer?.name ?? "CPU"}</span>
+                          <span className="text-zinc-400 text-xs leading-none">is playing…</span>
+                        </div>
+                      )
+                    })()}
+
                     {gameState.board.map((position) => (
                       <BoardPosition
                         key={position.id}
