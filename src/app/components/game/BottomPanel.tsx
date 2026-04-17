@@ -168,7 +168,7 @@ export default function BottomPanel({
             )}
             {(gamePhase === "SELECT_PILL_TARGET_2" || gamePhase === "SELECT_PILL_TARGET_3") && (
               <div className="grid grid-cols-2 gap-2">
-                <Btn onClick={onSkipPill}><span>⏭️</span> Skip</Btn>
+                <Btn onClick={onSkipPill}><span>✅</span> Done</Btn>
                 <Btn onClick={onCancelAction} variant="secondary"><span>↩️</span> Cancel</Btn>
               </div>
             )}

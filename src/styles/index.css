@@ -42,6 +42,13 @@
   animation: police-raid-flash 1.8s ease-in-out forwards;
 }
 
+/* ── Sleeping gangster Zzz blink ────────────────────────────────────────────── */
+@keyframes zzz-blink {
+  0%, 100% { opacity: 1;   transform: scale(1);    }
+  40%, 60% { opacity: 0.1; transform: scale(0.85); }
+}
+.zzz-blink { animation: zzz-blink 1.4s ease-in-out infinite; }
+
 /* ── Thin scrollbar for game log ────────────────────────────────────────────── */
 .game-log-scroll {
   scrollbar-width: thin;

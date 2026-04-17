@@ -157,6 +157,9 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   const gameStateRef = useRef<GameState>(gameState)
   useEffect(() => { gameStateRef.current = gameState }, [gameState])
 
+  // Tracks "playerId:turn" to prevent double-paying on phase changes (e.g. cancel)
+  const paymentProcessedRef = useRef<string>("")
+
   useEffect(() => {
     const handleClick = () => playSFX("click", 0.3)
     document.addEventListener("click", handleClick)
@@ -187,6 +190,12 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       if (explodingCakes.length > 0) {
         const stateAfterExplosions = checkCakeExplosions(gameState, currentPlayer.id)
         setGameState(stateAfterExplosions)
+        // Play explosion SFX + seat animations for each cake blast
+        for (const cake of explodingCakes) {
+          playSFX("explodecake", 0.3)
+          const cakePos = gameState.board.find((p) => p.id === cake.seatId)
+          if (cakePos) triggerSeatAnimation([cakePos.id, cakePos.leftId, cakePos.rightId].filter((s): s is number => s != null), "seat-anim-danger", 960)
+        }
         toast.error(`💥 ${explodingCakes.length} cake${explodingCakes.length > 1 ? "s" : ""} exploded!`)
         addLogEntry({ round: gameState.turn, playerId: currentPlayer.id, playerName: currentPlayer.name, message: buildExplosionLog(currentPlayer.name, currentPlayer.id, gameState, stateAfterExplosions), type: "explosion" })
       }
@@ -196,8 +205,12 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   useEffect(() => {
     if (gameState.currentPhase === "SELECT_CARD" && !gameOver) {
       const currentPlayer = gameState.players[currentPlayerIndex]
+      // Prevent duplicate payment when phase bounces back to SELECT_CARD (e.g. cancel action)
+      const paymentKey = `${currentPlayer.id}:${gameState.turn}`
+      if (paymentProcessedRef.current === paymentKey) return
       const payment = calculatePayment(currentPlayer, gameState.board)
       if (payment > 0) {
+        paymentProcessedRef.current = paymentKey
         const updatedPlayers = [...gameState.players]
         updatedPlayers[currentPlayerIndex] = { ...currentPlayer, money: currentPlayer.money + payment }
         setGameState({ ...gameState, players: updatedPlayers, bankMoney: Math.max(0, gameState.bankMoney - payment) })
@@ -312,10 +325,19 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       const latestState = gameStateRef.current
       if (latestState.currentPhase !== "SELECT_CARD") return
       const { newState, nextPlayerIndex, logs, actionSummaries, logEntryData } = executeSingleBotTurn(latestState, currentPlayerIndex)
-      for (const summary of actionSummaries) {
-        if (summary.soundName === "policeraid") { playSFX("policeraid", 0.7); setPoliceRaidActive(true); setTimeout(() => setPoliceRaidActive(false), 1800) }
-        else { triggerSeatAnimation(summary.seatIds, summary.animClass, 960); if (summary.soundName) playSFX(summary.soundName, 0.7, summary.soundDelay) }
-      }
+      // Stagger each action's SFX/animation by 1200ms so they don't overlap
+      actionSummaries.forEach((summary, i) => {
+        setTimeout(() => {
+          if (summary.soundName === "policeraid") { playSFX("policeraid", 0.7); setPoliceRaidActive(true); setTimeout(() => setPoliceRaidActive(false), 1800) }
+          else {
+            triggerSeatAnimation(summary.seatIds, summary.animClass, 960)
+            if (summary.soundName) {
+              const vol = summary.soundName === "explodecake" ? 0.3 : 0.7
+              playSFX(summary.soundName, vol, summary.soundDelay)
+            }
+          }
+        }, i * 1200)
+      })
       for (const entry of logEntryData) addLogEntry(entry)
       setBotLog((prev) => [...prev.slice(-80), ...logs])
       setCurrentPlayerIndex(nextPlayerIndex)
@@ -324,7 +346,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       setValidGangsters([]); setValidTargets([]); setValidCakes([]); setValidDirections([])
       setPillsApplied(0); setPendingPillTargetIds([]); setValidPillTargets([])
       setSecondActionTaken(false)
-    }, 2000)
+    }, 2500)
 
     return () => clearTimeout(timer)
   }, [currentPlayerIndex, gameState.currentPhase, gameMode, gameOver]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -626,7 +648,10 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
 
     const feedback = computeActionSeats(action, gameState)
     triggerSeatAnimation(feedback.seatIds, feedback.animClass, 960)
-    if (feedback.soundName) playSFX(feedback.soundName, 0.7, feedback.soundDelay)
+    if (feedback.soundName) {
+      const vol = feedback.soundName === "explodecake" ? 0.3 : 0.7
+      playSFX(feedback.soundName, vol, feedback.soundDelay)
+    }
 
     const preActionState = newGameState
     try { newGameState = performAction(newGameState, action) }

@@ -29,15 +29,24 @@ const getCardImage = (type: string): string => {
 
 const getCardDescription = (type: string): string => {
   switch (type) {
-    case "KNIFE":          return "Attack a gangster to your left or right."
-    case "GUN":            return "Shoot the gangster directly in front of you."
-    case "DISPLACEMENT":   return "Move one of your gangsters to any empty position on the board."
-    case "ORDER_CAKE":     return "Place a cake bomb at any position. It will explode the following round."
-    case "PASS_CAKE":      return "Move a cake bomb one position to the left or right."
-    case "EXPLODE_CAKE":   return "Detonate a cake bomb immediately, eliminating gangsters in the blast."
-    case "POLICE_RAID":    return "Clear the entire board — all surviving gangsters must be re-seated. This card is permanently removed from the deck."
-    case "SLEEPING_PILLS": return "Put a gangster to sleep, preventing them from acting this round."
-    default:               return "Unknown card."
+    case "KNIFE":
+      return "Slash a gangster immediately to your left or right. If the adjacent seat is occupied by an enemy, they are eliminated and removed from the board. Your gangster must be alive and seated to use this card."
+    case "GUN":
+      return "Shoot the gangster sitting directly across the table from yours. If the opposite seat is occupied, they are eliminated. If the seat is empty, the shot misses — but the card is still spent."
+    case "DISPLACEMENT":
+      return "Move one of your gangsters from their current seat to any unoccupied seat on the board. Can also be used as a second action after your first play — if you have a Displacement card in hand after playing another card, you get the option to move."
+    case "ORDER_CAKE":
+      return "Place a cake bomb on any seat on the board. The bomb is armed this round and will automatically explode at the start of your NEXT turn, eliminating anyone seated to the left, right, and center of the blast. Plan ahead — your own gangsters can be caught in the blast."
+    case "PASS_CAKE":
+      return "Nudge an existing cake bomb one seat to the left or right. Use this to redirect a bomb toward an enemy, or push it away from your own gangsters before it explodes."
+    case "EXPLODE_CAKE":
+      return "Manually trigger a cake bomb right now — no waiting for next round. The explosion hits the center seat and both adjacent seats. Any gangster caught in the blast is eliminated. Great for a surprise strike."
+    case "POLICE_RAID":
+      return "The cops show up and clear the entire board. Every gangster is removed and all players must re-seat their gang from scratch, in turn order starting with you. Powerful for disrupting strong positions. WARNING: this card is permanently removed from the deck once played — it will not be reshuffled."
+    case "SLEEPING_PILLS":
+      return "Drug up to 3 enemy gangsters sitting at bar or drink seats. Sleeping gangsters skip their turn but stay on the board. They wake up at the end of their owner's next turn. Useful for neutralizing threats without eliminating them."
+    default:
+      return "Unknown card."
   }
 }
 

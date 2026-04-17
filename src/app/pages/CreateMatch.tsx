@@ -111,8 +111,8 @@ export default function CreateMatch() {
 
                 <div className="flex gap-6">
                   <MatchOptionCard
-                    title="Automatic"
-                    subtitle="Preset seating"
+                    title="Preset"
+                    subtitle="Fixed positions"
                     selected={seating === 'automatic'}
                     onClick={() => setSeating('automatic')}
                     className="h-44 w-56"

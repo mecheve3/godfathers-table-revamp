@@ -113,12 +113,12 @@ export default function BoardPosition({ position, gameState, selected, highlight
           <img
             src={gangsterDetails.imageSrc}
             alt={gangsterDetails.type}
-            className={`w-full h-full object-contain ${isSleeping ? "opacity-50 saturate-0" : ""}`}
+            className={`w-full h-full object-contain ${isSleeping ? "opacity-70" : ""}`}
           />
         )}
         {isSleeping && (
-          <div className="absolute inset-0 flex items-center justify-center bg-blue-900/40 rounded-full pointer-events-none">
-            <span className="text-xs font-bold text-blue-200 leading-none">Zzz</span>
+          <div className="absolute inset-0 flex items-center justify-center bg-blue-900/50 rounded-full pointer-events-none">
+            <span className="text-sm font-black text-blue-100 leading-none zzz-blink drop-shadow-lg">Zzz</span>
           </div>
         )}
       </div>
@@ -126,14 +126,15 @@ export default function BoardPosition({ position, gameState, selected, highlight
       {cakes.map((cake, index) => (
         <div
           key={cake.id}
-          className="absolute w-7 h-7 rounded-full border-2 border-white flex items-center justify-center animate-pulse"
+          className="absolute w-7 h-7 rounded-full border-2 border-white flex items-center justify-center animate-pulse cursor-pointer"
           style={{
             backgroundColor: cake.color,
             left: `calc(${style.left} + ${index === 0 ? "-18px" : "18px"})`,
             top: `calc(${style.top} + ${index === 0 ? "-18px" : "18px"})`,
             zIndex: 5,
           }}
-          title={`Cake placed by ${cake.ownerId} on round ${cake.roundPlaced}.`}
+          title={`Cake placed on round ${cake.roundPlaced} — explodes next round`}
+          onClick={onClick}
         >
           🎂
         </div>
