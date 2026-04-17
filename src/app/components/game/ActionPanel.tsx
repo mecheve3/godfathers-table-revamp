@@ -68,60 +68,58 @@ export default function ActionPanel({
 
   return (
     <div className={`border-2 ${playerColor} h-full flex flex-col bg-gradient-to-b from-[#3D2314] to-[#2B1710] overflow-hidden`}>
-      {/* Top section: standings (game over) OR player dashboards + bank — scrollable if overflow */}
-      <div className="flex-shrink-0 max-h-[58%] overflow-y-auto game-log-scroll text-[#F5AC0E]">
+
+      {/* Dashboards — scroll internally when there are many players */}
+      <div className="flex-1 min-h-0 overflow-y-auto game-log-scroll pt-4 pb-2 px-4 space-y-2 text-[#F5AC0E]">
         {gameOver ? (
-          <div className="p-4">
-            <div className="p-4 bg-zinc-700 rounded-md text-center">
-              <h3 className="font-bold text-xl mb-2">Game Over!</h3>
-              <div className="space-y-4">
-                <h4 className="font-semibold text-lg">Final Standings</h4>
-                <div className="space-y-2 mt-2">
-                  {finalStandings.map((standing, index) => (
-                    <div key={index} className={`p-2 rounded-md ${index === 0 ? "bg-yellow-900/30 border border-yellow-500" : "bg-zinc-800"}`}>
-                      <div className="flex justify-between items-center">
-                        <span className="font-medium">{standing.rank}. {standing.player}</span>
-                        <span className="text-green-400 font-bold">${standing.money.toLocaleString()}</span>
-                      </div>
-                      {standing.aliveGangsters !== undefined && (
-                        <div className="text-xs text-gray-400 mt-1 text-left">Gangsters remaining: {standing.aliveGangsters}</div>
-                      )}
+          <div className="p-4 bg-zinc-700 rounded-md text-center">
+            <h3 className="font-bold text-xl mb-2">Game Over!</h3>
+            <div className="space-y-4">
+              <h4 className="font-semibold text-lg">Final Standings</h4>
+              <div className="space-y-2 mt-2">
+                {finalStandings.map((standing, index) => (
+                  <div key={index} className={`p-2 rounded-md ${index === 0 ? "bg-yellow-900/30 border border-yellow-500" : "bg-zinc-800"}`}>
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium">{standing.rank}. {standing.player}</span>
+                      <span className="text-green-400 font-bold">${standing.money.toLocaleString()}</span>
                     </div>
-                  ))}
-                </div>
+                    {standing.aliveGangsters !== undefined && (
+                      <div className="text-xs text-gray-400 mt-1 text-left">Gangsters remaining: {standing.aliveGangsters}</div>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           </div>
         ) : (
-          <div className="p-4 space-y-2">
-            <div className="space-y-3">
-              {gameState.players.slice(0, playerCount).map((player, index) => (
-                <PlayerDashboard
-                  key={player.id}
-                  player={player}
-                  isCurrentPlayer={index === currentPlayerIndex}
-                  isSeatingPlayer={player.id === seatingCurrentPlayerId}
-                  seatingGangsterIds={seatingQueue?.[player.id] ?? []}
-                  selectedSeatingGangsterId={player.id === seatingCurrentPlayerId ? seatingSelectedGangsterId : null}
-                  onSeatingGangsterSelect={player.id === seatingCurrentPlayerId ? onSeatingGangsterSelect : undefined}
-                />
-              ))}
-            </div>
-
-            <div className="pt-3 border-t border-zinc-700">
-              <div className="flex justify-between items-center">
-                <span className="font-semibold text-[#F5AC0E]">Bank:</span>
-                <span className="text-[#F5AC0E] font-bold">${gameState.bankMoney.toLocaleString()}</span>
-              </div>
-            </div>
+          <div className="space-y-3">
+            {gameState.players.slice(0, playerCount).map((player, index) => (
+              <PlayerDashboard
+                key={player.id}
+                player={player}
+                isCurrentPlayer={index === currentPlayerIndex}
+                isSeatingPlayer={player.id === seatingCurrentPlayerId}
+                seatingGangsterIds={seatingQueue?.[player.id] ?? []}
+                selectedSeatingGangsterId={player.id === seatingCurrentPlayerId ? seatingSelectedGangsterId : null}
+                onSeatingGangsterSelect={player.id === seatingCurrentPlayerId ? onSeatingGangsterSelect : undefined}
+              />
+            ))}
           </div>
         )}
       </div>
 
-      {/* Game log — always gets the remaining height */}
+      {/* Bank — always pinned, never scrolls away */}
       {!gameOver && (
-        <div className="flex flex-col flex-1 min-h-0 border-t border-zinc-700 overflow-hidden">
-          <div className="flex-shrink-0 px-3 py-1.5 flex items-center gap-1.5">
+        <div className="flex-shrink-0 px-4 py-2 border-t border-zinc-700 flex justify-between items-center">
+          <span className="font-semibold text-[#F5AC0E] text-sm">Bank</span>
+          <span className="text-[#F5AC0E] font-bold">${gameState.bankMoney.toLocaleString()}</span>
+        </div>
+      )}
+
+      {/* Game log — fixed height at the bottom */}
+      {!gameOver && (
+        <div className="flex-shrink-0 border-t border-zinc-700 flex flex-col overflow-hidden" style={{ height: "32%" }}>
+          <div className="flex-shrink-0 px-3 py-1 flex items-center gap-1.5">
             <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Game Log</span>
           </div>
           <div className="flex-1 min-h-0 overflow-y-auto game-log-scroll px-1 pb-2">

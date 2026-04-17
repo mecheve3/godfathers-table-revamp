@@ -137,6 +137,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   const [policeRaidActive, setPoliceRaidActive] = useState(false)
   const [logEntries, setLogEntries] = useState<LogEntry[]>([])
   const [activeBotPlayerId, setActiveBotPlayerId] = useState<string | null>(null)
+  const [centerCard, setCenterCard] = useState<{ cardType: string; playerId: string } | null>(null)
 
   const addLogEntry = (data: Omit<LogEntry, "id" | "highlighted">) => {
     const id = `log-${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -145,6 +146,11 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     setTimeout(() => {
       setLogEntries((prev) => prev.map((e) => (e.id === id ? { ...e, highlighted: false } : e)))
     }, 2000)
+  }
+
+  const showCenterCard = (cardType: string, playerId: string) => {
+    setCenterCard({ cardType, playerId })
+    setTimeout(() => setCenterCard(null), 1400)
   }
 
   const triggerSeatAnimation = (seatIds: number[], animClass: string, durationMs = 960) => {
@@ -264,10 +270,11 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     return (fromIdx + 1) % total
   }
 
-  const executeSingleBotTurn = (state: GameState, playerIndex: number): { newState: GameState; nextPlayerIndex: number; logs: string[]; actionSummaries: ActionSummary[]; logEntryData: Omit<LogEntry, "id" | "highlighted">[] } => {
+  const executeSingleBotTurn = (state: GameState, playerIndex: number): { newState: GameState; nextPlayerIndex: number; logs: string[]; actionSummaries: ActionSummary[]; logEntryData: Omit<LogEntry, "id" | "highlighted">[]; playedCards: Array<{ cardType: string; playerId: string }> } => {
     const logs: string[] = []
     const actionSummaries: ActionSummary[] = []
     const logEntryData: Omit<LogEntry, "id" | "highlighted">[] = []
+    const playedCards: Array<{ cardType: string; playerId: string }> = []
     const botPlayer = state.players[playerIndex]
     const botId = botPlayer.id
     let currentState = state
@@ -289,6 +296,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       }
     } else {
       actionSummaries.push(computeActionSeats(firstPlay.action, currentState))
+      playedCards.push({ cardType: firstPlay.action.type, playerId: botId })
       const preFirst = currentState
       currentState = playCard(currentState, botId, firstPlay.cardId)
       currentState = performAction(currentState, firstPlay.action)
@@ -297,6 +305,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       const secondPlay = decideBotSecondPlay(currentState, botId)
       if (secondPlay) {
         actionSummaries.push(computeActionSeats(secondPlay.action, currentState))
+        playedCards.push({ cardType: secondPlay.action.type, playerId: botId })
         const preSecond = currentState
         currentState = playCard(currentState, botId, secondPlay.cardId)
         currentState = performAction(currentState, secondPlay.action)
@@ -311,7 +320,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     if (nextPlayerIndex <= playerIndex) finalState.turn += 1
     finalState.currentPhase = "SELECT_CARD"
     finalState.selectedCakeId = undefined
-    return { newState: finalState, nextPlayerIndex, logs, actionSummaries, logEntryData }
+    return { newState: finalState, nextPlayerIndex, logs, actionSummaries, logEntryData, playedCards }
   }
 
   useEffect(() => {
@@ -326,7 +335,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     const timer = setTimeout(() => {
       const latestState = gameStateRef.current
       if (latestState.currentPhase !== "SELECT_CARD") return
-      const { newState, nextPlayerIndex, logs, actionSummaries, logEntryData } = executeSingleBotTurn(latestState, currentPlayerIndex)
+      const { newState, nextPlayerIndex, logs, actionSummaries, logEntryData, playedCards } = executeSingleBotTurn(latestState, currentPlayerIndex)
       // Stagger each action's SFX/animation by 1200ms so they don't overlap
       actionSummaries.forEach((summary, i) => {
         setTimeout(() => {
@@ -339,6 +348,9 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
             }
           }
         }, i * 1200)
+      })
+      playedCards.forEach((pc, i) => {
+        setTimeout(() => showCenterCard(pc.cardType, pc.playerId), i * 1200)
       })
       for (const entry of logEntryData) addLogEntry(entry)
       setBotLog((prev) => [...prev.slice(-80), ...logs])
@@ -669,6 +681,8 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       type: "action",
     })
 
+    showCenterCard(card.type, currentPlayer.id)
+
     setSelectedCardId(null); setSelectedGangsterIndex(null); setSelectedDirection(null); setTargetPositionId(null)
     setValidCakes([]); setValidDirections([]); setPillsApplied(0); setPendingPillTargetIds([]); setValidPillTargets([])
     newGameState.selectedCakeId = undefined
@@ -786,7 +800,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     setSelectedDirection(null); setTargetPositionId(null); setGameOver(false)
     setValidGangsters([]); setValidTargets([]); setValidCakes([]); setValidDirections([])
     setPillsApplied(0); setPendingPillTargetIds([]); setValidPillTargets([])
-    setFinalStandings([]); setSecondActionTaken(false); setBotLog([]); setSeatAnimations([]); setPoliceRaidActive(false); setLogEntries([]); setActiveBotPlayerId(null)
+    setFinalStandings([]); setSecondActionTaken(false); setBotLog([]); setSeatAnimations([]); setPoliceRaidActive(false); setLogEntries([]); setActiveBotPlayerId(null); setCenterCard(null)
     setSeatingSelectedGangsterId(null); setSeatingCurrentIdx(0)
     if (seatingType === "manual") {
       const order = newGameState.players.map((p) => p.id)
@@ -844,6 +858,22 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                           <span className="w-2.5 h-2.5 rounded-full animate-pulse flex-shrink-0" style={{ backgroundColor: color }} />
                           <span className="text-white font-semibold text-sm leading-none">{botPlayer?.name ?? "CPU"}</span>
                           <span className="text-zinc-400 text-xs leading-none">is playing…</span>
+                        </div>
+                      )
+                    })()}
+
+                    {/* Card play center animation */}
+                    {centerCard && (() => {
+                      const colorMap: Record<string, string> = { player1: "#ef4444", player2: "#3b82f6", player3: "#facc15", player4: "#22c55e", player5: "#f97316", player6: "#a855f7" }
+                      const color = colorMap[centerCard.playerId] ?? "#9ca3af"
+                      const imgSrc = `/images/cards/${centerCard.cardType.toLowerCase().replace(/_/g, "")}.png`
+                      return (
+                        <div
+                          key={`${centerCard.playerId}-${centerCard.cardType}`}
+                          className="card-play-flash rounded-md overflow-hidden shadow-2xl z-30"
+                          style={{ border: `3px solid ${color}`, width: "10%", aspectRatio: "5/7" }}
+                        >
+                          <img src={imgSrc} alt={centerCard.cardType} className="w-full h-full object-cover" draggable={false} />
                         </div>
                       )
                     })()}
