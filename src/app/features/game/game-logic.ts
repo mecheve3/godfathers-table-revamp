@@ -1039,13 +1039,13 @@ export const initializeGame = (gameState: GameState): GameState => {
 export const calculatePayment = (player: Player, board: Position[]): number => {
   let payment = 0
 
-  // Check if godfather is alive
-  const godfatherAlive = player.gangsters.some((g) => g.type === "GODFATHER" && g.position !== null)
+  // Check if godfather is alive AND awake (sleeping godfather earns nothing)
+  const godfatherAlive = player.gangsters.some((g) => g.type === "GODFATHER" && g.position !== null && g.status !== "sleeping")
   if (godfatherAlive) {
     payment += 1000
   }
 
-  // Count businesses controlled
+  // Count businesses controlled — sleeping gangsters earn nothing
   const businessTypes = ["BAR", "GAMBLING_HOUSE", "STRIP_CLUB"]
   const controlledBusinesses: Record<string, number> = {
     BAR: 0,
@@ -1053,9 +1053,9 @@ export const calculatePayment = (player: Player, board: Position[]): number => {
     STRIP_CLUB: 0,
   }
 
-  // Check which businesses player controls
+  // Check which businesses player controls (only awake gangsters contribute)
   player.gangsters.forEach((gangster) => {
-    if (gangster.position !== null) {
+    if (gangster.position !== null && gangster.status !== "sleeping") {
       const position = board.find((pos) => pos.id === gangster.position)
       if (position && businessTypes.includes(position.item as string)) {
         controlledBusinesses[position.item as string]++
@@ -1071,9 +1071,9 @@ export const calculatePayment = (player: Player, board: Position[]): number => {
     }
   })
 
-  // Check if any gangster is in front of cash register (doubles income)
+  // Check if any awake gangster is at the cash register (doubles income)
   const hasCashRegister = player.gangsters.some((gangster) => {
-    if (gangster.position !== null) {
+    if (gangster.position !== null && gangster.status !== "sleeping") {
       const position = board.find((pos) => pos.id === gangster.position)
       return position && position.item === "CASH_REGISTER"
     }

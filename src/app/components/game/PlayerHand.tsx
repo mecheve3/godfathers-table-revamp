@@ -11,6 +11,7 @@ interface PlayerHandProps {
   isDiscardMode?: boolean
   gameState: any
   playerId: string
+  newlyDealtCardIds?: string[]
 }
 
 const getCardImage = (type: string): string => {
@@ -82,7 +83,7 @@ const getPlayerBorderColor = (playerId: string): string => {
   }
 }
 
-export default function PlayerHand({ cards, onSelectCard, selectedCardId, disabled = false, isDiscardMode = false, gameState, playerId }: PlayerHandProps) {
+export default function PlayerHand({ cards, onSelectCard, selectedCardId, disabled = false, isDiscardMode = false, gameState, playerId, newlyDealtCardIds = [] }: PlayerHandProps) {
   const [playableCards, setPlayableCards] = useState<Record<string, boolean>>({})
   const [infoCardId, setInfoCardId] = useState<string | null>(null)
   const borderColor = getPlayerBorderColor(playerId)
@@ -103,6 +104,7 @@ export default function PlayerHand({ cards, onSelectCard, selectedCardId, disabl
           const isSecondDisplacementLocked = gameState.currentPhase === "SECOND_DISPLACEMENT" && card.type !== "DISPLACEMENT"
           const isPlayable = isDiscardMode || (playableCards[card.id] && !isSecondDisplacementLocked)
           const isSelected = selectedCardId === card.id
+          const isNewlyDealt = newlyDealtCardIds.includes(card.id)
           const imageSrc = getCardImage(card.type)
 
           return (
@@ -116,6 +118,7 @@ export default function PlayerHand({ cards, onSelectCard, selectedCardId, disabl
                   isSelected ? "ring-2 ring-white scale-105" : "",
                   isDiscardMode ? "hover:ring-2 hover:ring-red-500 cursor-pointer" : "",
                   !isPlayable && !isDiscardMode ? "opacity-50 grayscale cursor-not-allowed" : !isDiscardMode ? "hover:scale-105 cursor-pointer" : "",
+                  isNewlyDealt ? "card-new-deal" : "",
                 )}
               >
                 {imageSrc ? (

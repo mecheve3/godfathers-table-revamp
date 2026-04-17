@@ -1,7 +1,6 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router'
 import { motion, AnimatePresence } from 'motion/react'
-import { toast } from 'sonner'
 import { PageTransition } from '../components/PageTransition'
 import { Button } from '../components/Button'
 import { BackButton } from '../components/BackButton'
@@ -12,6 +11,7 @@ import { useMatch } from '../features/match/MatchContext'
 type Step = 'players' | 'seating'
 
 const PLAYER_COUNTS = [3, 4, 5, 6] as const
+const TEAM_COLORS = ["Blue", "Yellow", "Green", "Orange", "Purple"] as const
 
 export default function CreateMatch() {
   const navigate = useNavigate()
@@ -22,28 +22,39 @@ export default function CreateMatch() {
   const [step, setStep] = useState<Step>('players')
   const [maxPlayers, setMaxPlayers] = useState<number | null>(null)
   const [seating, setSeating] = useState<'automatic' | 'manual' | null>(null)
+  const [showNameModal, setShowNameModal] = useState(false)
+  const [playerName, setPlayerName] = useState('')
+  const nameInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (showNameModal) setTimeout(() => nameInputRef.current?.focus(), 50)
+  }, [showNameModal])
 
   const handleConfirm = () => {
     if (!maxPlayers || !seating) return
 
     if (isQuickMatch) {
-      // Quick match: fill all seats with CPU except player 1 (host), navigate directly to game
-      const cpuSlots = Array.from({ length: maxPlayers - 1 }, (_, i) => ({
-        id: `cpu-${i + 2}`,
-        name: `CPU ${i + 2}`,
-        kind: 'cpu' as const,
-      }))
-      const slots = [
-        { id: 'self', name: 'You', kind: 'host' as const },
-        ...cpuSlots,
-      ]
-      setConfig({ ...config!, settings: { maxPlayers, seating, isPrivate: false }, slots })
-      toast.success('Starting game with CPU opponents…')
-      navigate('/game')
+      setShowNameModal(true)
     } else {
       setConfig({ ...config!, settings: { maxPlayers, seating, isPrivate: false } })
       navigate('/lobby')
     }
+  }
+
+  const handleStartGame = () => {
+    if (!maxPlayers || !seating) return
+    const finalName = playerName.trim() || 'Red Team'
+    const cpuSlots = Array.from({ length: maxPlayers - 1 }, (_, i) => ({
+      id: `cpu-${i + 2}`,
+      name: `${TEAM_COLORS[i]} Team`,
+      kind: 'cpu' as const,
+    }))
+    const slots = [
+      { id: 'self', name: finalName, kind: 'host' as const },
+      ...cpuSlots,
+    ]
+    setConfig({ ...config!, settings: { maxPlayers, seating, isPrivate: false }, slots })
+    navigate('/game')
   }
 
   const ctaLabel = isQuickMatch ? 'Start Game' : 'Create Lobby'
@@ -143,6 +154,28 @@ export default function CreateMatch() {
           to={step === 'players' ? '/menu' : undefined}
         />
       </GameLayout>
+
+      {/* Player name modal */}
+      {showNameModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
+          <div className="bg-[#1a0c06] border border-[#C9A84C]/40 rounded-lg w-full max-w-sm p-6 flex flex-col gap-5">
+            <h2 className="text-[#F5AC0E] font-serif font-bold text-lg tracking-wide text-center">What's your name?</h2>
+            <input
+              ref={nameInputRef}
+              type="text"
+              value={playerName}
+              onChange={(e) => setPlayerName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleStartGame() }}
+              placeholder="Red Team"
+              maxLength={20}
+              className="w-full bg-zinc-800 border border-zinc-600 rounded-md px-4 py-2.5 text-white placeholder-zinc-500 focus:outline-none focus:border-[#F5AC0E] text-center text-lg"
+            />
+            <Button onClick={handleStartGame} className="w-full">
+              Start Game
+            </Button>
+          </div>
+        </div>
+      )}
     </PageTransition>
   )
 }

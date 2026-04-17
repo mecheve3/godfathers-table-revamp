@@ -10,9 +10,10 @@ export default function Game() {
   const seating = config?.settings?.seating ?? 'automatic'
   const slots = config?.slots ?? []
 
-  // Build player names from lobby slots; fall back to default names
+  const TEAM_COLORS = ["Red", "Blue", "Yellow", "Green", "Orange", "Purple"]
+  // Build player names from lobby slots; fall back to team color names
   const playerNames = slots.length > 0
-    ? slots.map((s) => s.name || (s.kind === 'cpu' ? `CPU` : `Player`))
+    ? slots.map((s, i) => s.name || `${TEAM_COLORS[i] ?? "Player"} Team`)
     : undefined
 
   const handleReturnToHome = () => {

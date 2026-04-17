@@ -32,6 +32,7 @@ interface BottomPanelProps {
   humanPlayer?: Player
   gameMode?: "hotseat" | "solo"
   botLog?: string[]
+  newlyDealtCardIds?: string[]
 }
 
 export default function BottomPanel({
@@ -41,6 +42,7 @@ export default function BottomPanel({
   validGangsters, validTargets, canPlaySecondDisplacement, gameState, secondActionTaken,
   pillsApplied, pendingPillTargetIds, onSkipPill, seatingCurrentPlayerName,
   seatingSelectedGangsterId, onSeatingConfirm, onSeatingBack, humanPlayer, gameMode, botLog,
+  newlyDealtCardIds = [],
 }: BottomPanelProps) {
   const [logExpanded, setLogExpanded] = useState(false)
 
@@ -71,6 +73,7 @@ export default function BottomPanel({
             cards={handPlayer.hand}
             onSelectCard={onSelectCard}
             selectedCardId={selectedCardId}
+            newlyDealtCardIds={newlyDealtCardIds}
             disabled={
               isBotTurn ||
               (gamePhase !== "SELECT_CARD" && gamePhase !== "SELECT_DISCARD" && gamePhase !== "SECOND_DISPLACEMENT") ||

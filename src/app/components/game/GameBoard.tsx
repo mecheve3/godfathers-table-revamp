@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from "react"
-import { toast } from "sonner"
 import {
   initialGameState, initialGameState4, initialGameState5, initialGameState6,
   performAction, calculatePayment, initializeGame, dealCards, playCard,
@@ -138,6 +137,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   const [logEntries, setLogEntries] = useState<LogEntry[]>([])
   const [activeBotPlayerId, setActiveBotPlayerId] = useState<string | null>(null)
   const [centerCard, setCenterCard] = useState<{ cardType: string; playerId: string } | null>(null)
+  const [newlyDealtCardIds, setNewlyDealtCardIds] = useState<string[]>([])
 
   const addLogEntry = (data: Omit<LogEntry, "id" | "highlighted">) => {
     const id = `log-${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -193,7 +193,14 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   useEffect(() => {
     if (gameState.currentPhase === "SELECT_CARD" && !gameOver) {
       const currentPlayer = gameState.players[currentPlayerIndex]
-      const explodingCakes = gameState.cakes.filter((cake) => cake.ownerId === currentPlayer.id && cake.roundPlaced < gameState.turn)
+      const explodingCakes = gameState.cakes.filter((cake) => {
+        if (cake.ownerId !== currentPlayer.id) return false
+        if (cake.roundPlaced >= gameState.turn) return false
+        // If the original owner has been fully eliminated (all gangsters gone), the cake
+        // no longer auto-explodes — it can only be detonated manually by other players.
+        const owner = gameState.players.find((p) => p.id === cake.ownerId)
+        return owner?.gangsters.some((g) => g.position !== null) ?? false
+      })
       if (explodingCakes.length > 0) {
         const stateAfterExplosions = checkCakeExplosions(gameState, currentPlayer.id)
         setGameState(stateAfterExplosions)
@@ -256,7 +263,6 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   const checkAndSkipPlayerWithNoGangsters = () => {
     const currentPlayer = gameState.players[currentPlayerIndex]
     if (!currentPlayer.gangsters.some((g) => g.position !== null)) {
-      toast(`${currentPlayer.name} has no gangsters left — skipping turn`)
       setCurrentPlayerIndex(getNextActivePlayerIndex(currentPlayerIndex, gameState.players))
     }
   }
@@ -347,10 +353,10 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
               playSFX(summary.soundName, vol, summary.soundDelay)
             }
           }
-        }, i * 1200)
+        }, i * 1800)
       })
       playedCards.forEach((pc, i) => {
-        setTimeout(() => showCenterCard(pc.cardType, pc.playerId), i * 1200)
+        setTimeout(() => showCenterCard(pc.cardType, pc.playerId), i * 1800)
       })
       for (const entry of logEntryData) addLogEntry(entry)
       setBotLog((prev) => [...prev.slice(-80), ...logs])
@@ -361,7 +367,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       setValidGangsters([]); setValidTargets([]); setValidCakes([]); setValidDirections([])
       setPillsApplied(0); setPendingPillTargetIds([]); setValidPillTargets([])
       setSecondActionTaken(false)
-    }, 2500)
+    }, 4000)
 
     return () => { clearTimeout(timer); setActiveBotPlayerId(null) }
   }, [currentPlayerIndex, gameState.currentPhase, gameMode, gameOver]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -386,19 +392,16 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       const newQueue = { ...seatingQueue }
       newQueue[currentSeatingPlayerId] = (newQueue[currentSeatingPlayerId] ?? []).filter((id) => id !== decision.gangsterId)
       setSeatingQueue(newQueue); setSeatingSelectedGangsterId(null); setTargetPositionId(null); setValidTargets([])
-      toast(`${playerName} placed a gangster at seat #${decision.seatId}`)
 
       const allDone = Object.values(newQueue).every((q) => q.length === 0)
       if (allDone) {
         if (isInitialSeating) {
           const finalState = initializeGame(newGameState); finalState.currentPhase = "SELECT_CARD"
           setIsInitialSeating(false); setSeatingQueue({}); setSeatingPlayerOrder([]); setCurrentPlayerIndex(0); setGameState(finalState)
-          toast.success("All gangsters seated! Game begins now!")
         } else {
           const raidingPlayerIdx = newGameState.players.findIndex((p) => p.id === seatingPlayerOrder[0])
           const nextIdx = getNextActivePlayerIndex(raidingPlayerIdx, newGameState.players)
           newGameState.currentPhase = "SELECT_CARD"; setSeatingQueue({}); setSeatingPlayerOrder([]); setCurrentPlayerIndex(nextIdx); setGameState(newGameState)
-          toast.success("All gangsters re-seated! Normal play resumes.")
         }
         return
       }
@@ -418,7 +421,6 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   const handleSelectDiscardCard = () => {
     if (gameState.currentPhase !== "SELECT_CARD" || secondActionTaken) return
     setGameState({ ...gameState, currentPhase: "SELECT_DISCARD" })
-    toast("Select a card to discard and draw a new one")
   }
 
   const handleDiscardCard = (cardId: string) => {
@@ -435,7 +437,6 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       newGameState.discardPile = [discardedCard]
     }
     if (newGameState.deck.length > 0) { const newCard = newGameState.deck.shift(); if (newCard) newGameState.players[currentPlayerIndex].hand.push(newCard) }
-    toast(`Discarded ${discardedCard.type.replace(/_/g, " ")} and drew a new card`)
     endTurn(newGameState)
   }
 
@@ -447,15 +448,15 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
 
     if (gameState.currentPhase === "SELECT_DISCARD") { handleDiscardCard(cardId); return }
     if (gameState.currentPhase === "SELECT_CARD" && !isCardPlayable(gameState, currentPlayer.id, cardId)) {
-      toast.error("This card has no valid targets at the moment"); return
+      return
     }
     setSelectedCardId(cardId)
 
     if (gameState.currentPhase === "SECOND_DISPLACEMENT") {
-      if (card.type !== "DISPLACEMENT") { toast.error("You can only play a Displacement card for your second action"); return }
+      if (card.type !== "DISPLACEMENT") { return }
       const vg = getValidGangstersForCard(gameState, currentPlayer.id, "DISPLACEMENT")
       setValidGangsters(vg)
-      if (vg.length === 0) { toast.error("No valid gangsters for displacement"); return }
+      if (vg.length === 0) { return }
       setGameState({ ...gameState, currentPhase: "SELECT_GANGSTER" })
       setSecondActionTaken(true)
       return
@@ -464,41 +465,40 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     if (gameState.currentPhase === "SELECT_CARD") {
       if (card.type === "EXPLODE_CAKE") {
         const vc = getValidCakesForExploding(gameState); setValidCakes(vc)
-        if (vc.length === 0) { toast.error("No cake bombs to explode"); return }
-        if (vc.length === 1) { handleSelectCake(vc[0], cardId) } else { setGameState({ ...gameState, currentPhase: "SELECT_CAKE" }); toast("Select a cake bomb to explode") }
+        if (vc.length === 0) { return }
+        if (vc.length === 1) { handleSelectCake(vc[0], cardId) } else { setGameState({ ...gameState, currentPhase: "SELECT_CAKE" }) }
         return
       }
       if (card.type === "PASS_CAKE") {
         const vc = getValidCakesForPassing(gameState); setValidCakes(vc)
-        if (vc.length === 0) { toast("No cake bombs to pass"); return }
-        if (vc.length === 1) { handleSelectCake(vc[0], cardId) } else { setGameState({ ...gameState, currentPhase: "SELECT_CAKE" }); toast("Select a cake bomb to move") }
+        if (vc.length === 0) { return }
+        if (vc.length === 1) { handleSelectCake(vc[0], cardId) } else { setGameState({ ...gameState, currentPhase: "SELECT_CAKE" }) }
         return
       }
       if (card.type === "SLEEPING_PILLS") {
         const targets = getValidPillTargets(gameState, currentPlayer.id, [])
-        if (targets.length === 0) { toast.error("No enemy gangsters at drink seats"); return }
+        if (targets.length === 0) { return }
         setSelectedCardId(cardId); setPillsApplied(0); setPendingPillTargetIds([])
         if (targets.length === 1) {
           const autoTarget = [targets[0]]; setPendingPillTargetIds(autoTarget); setPillsApplied(1)
           const nextTargets = getValidPillTargets(gameState, currentPlayer.id, autoTarget)
           setValidPillTargets(nextTargets); setGameState({ ...gameState, currentPhase: "SELECT_PILL_TARGET_2" })
-          toast("Auto-selected 1 target. Select 2nd or skip.")
         } else { setValidPillTargets(targets); setGameState({ ...gameState, currentPhase: "SELECT_PILL_TARGET_1" }) }
         return
       }
       if (card.type === "POLICE_RAID") {
         setSelectedCardId(cardId); setGameState({ ...gameState, currentPhase: "CONFIRM_ACTION" })
-        toast.warning("Confirm to clear the board and force all gangsters to re-seat"); return
+        return
       }
       if (card.type === "ORDER_CAKE") {
         const vp = getValidCakePositions(gameState); setValidTargets(vp)
-        if (vp.length === 0) { toast.error("No positions available for a cake"); return }
+        if (vp.length === 0) { return }
         setGameState({ ...gameState, currentPhase: "SELECT_TARGET" }); return
       }
 
       const vg = getValidGangstersForCard(gameState, currentPlayer.id, card.type)
       setValidGangsters(vg)
-      if (vg.length === 0) { toast.error(`No valid gangsters for ${card.type.replace(/_/g, " ")}`); return }
+      if (vg.length === 0) { return }
       setGameState({ ...gameState, currentPhase: "SELECT_GANGSTER" })
     }
   }
@@ -518,7 +518,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       const vd = getValidDirectionsForPassingCake(gameState, cakeId); setValidDirections(vd)
       const vp: number[] = []; const cakePosition = gameState.board.find((pos) => pos.id === cake.seatId)
       if (cakePosition) { if (vd.includes("left")) vp.push(cakePosition.leftId); if (vd.includes("right")) vp.push(cakePosition.rightId); setValidTargets(vp) }
-      if (vd.length === 0) { toast.error("This cake cannot be moved in either direction"); return }
+      if (vd.length === 0) { return }
     }
   }
 
@@ -537,9 +537,8 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     else if (card.type === "DISPLACEMENT") targets = getValidDisplacementPositions(gameState)
     setValidTargets(targets)
 
-    if (targets.length === 0) { toast.error(`No valid targets for ${card.type.replace(/_/g, " ")}`); return }
+    if (targets.length === 0) { return }
     setGameState({ ...gameState, currentPhase: "SELECT_TARGET" })
-    toast(`${gangster.type} at position ${gangster.position} — select target`)
   }
 
   const handlePositionClick = (positionId: number) => {
@@ -560,7 +559,6 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     if (gameState.currentPhase === "SELECT_GANGSTER") {
       const gi = currentPlayer.gangsters.findIndex((g) => g.position === positionId)
       if (gi !== -1 && validGangsters.includes(gi)) handleSelectGangster(gi)
-      else if (gi !== -1) toast.error("This gangster cannot use the selected card")
       return
     }
     const pillPhases = ["SELECT_PILL_TARGET_1", "SELECT_PILL_TARGET_2", "SELECT_PILL_TARGET_3"] as const
@@ -575,14 +573,13 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       if (card.type === "ORDER_CAKE") {
         if (validTargets.includes(positionId)) {
           setTargetPositionId(positionId); setGameState({ ...gameState, currentPhase: "CONFIRM_ACTION" })
-          toast(`Place cake at position ${positionId}?`)
-        } else toast.error("Cannot place a cake at this position")
+        }
         return
       }
       if (card.type === "DISPLACEMENT" && selectedGangsterIndex !== null) {
         if (position.occupiedBy === null && validTargets.includes(positionId)) {
           setTargetPositionId(positionId); setGameState({ ...gameState, currentPhase: "CONFIRM_ACTION" })
-        } else if (position.occupiedBy !== null) toast.error("Can only displace to an empty seat")
+        }
         return
       }
       if (card.type === "KNIFE" && selectedGangsterIndex !== null && validTargets.includes(positionId)) {
@@ -615,7 +612,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     if (!card) return
 
     if (card.type === "PASS_CAKE" && gameState.selectedCakeId) {
-      if (!validDirections.includes(direction)) { toast.error("Cannot move the cake in that direction"); return }
+      if (!validDirections.includes(direction)) { return }
       setSelectedDirection(direction); setGameState({ ...gameState, currentPhase: "CONFIRM_ACTION" }); return
     }
     if (card.type === "KNIFE" && selectedGangsterIndex !== null) {
@@ -624,7 +621,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       const position = gameState.board.find((pos) => pos.id === gangster.position)
       if (!position) return
       const targetPosId = direction === "left" ? position.leftId : position.rightId
-      if (!validTargets.includes(targetPosId)) { toast.error("No gangster in that direction"); return }
+      if (!validTargets.includes(targetPosId)) { return }
       setSelectedDirection(direction); setTargetPositionId(targetPosId); setGameState({ ...gameState, currentPhase: "CONFIRM_ACTION" })
     }
   }
@@ -660,7 +657,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       action.gangsterId = selectedGangsterIndex
       if (card.type === "KNIFE" && selectedDirection) action.direction = selectedDirection
       else if (card.type === "DISPLACEMENT" && targetPositionId) action.targetPositionId = targetPositionId
-    } else { toast.error("Missing required parameters"); return }
+    } else { return }
 
     const feedback = computeActionSeats(action, gameState)
     triggerSeatAnimation(feedback.seatIds, feedback.animClass, 960)
@@ -671,7 +668,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
 
     const preActionState = newGameState
     try { newGameState = performAction(newGameState, action) }
-    catch (err) { toast.error("The action could not be completed."); return }
+    catch (err) { return }
 
     addLogEntry({
       round: gameState.turn,
@@ -723,7 +720,6 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     const seat = gameState.board.find((p) => p.id === seatId)
     if (!seat || seat.occupiedBy !== null) return
     setTargetPositionId(seatId); setGameState({ ...gameState, currentPhase: "SEATING_CONFIRM" })
-    toast(`Place gangster at seat #${seatId}?`)
   }
 
   const handleSeatingBack = () => {
@@ -739,19 +735,16 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     const newQueue = { ...seatingQueue }
     newQueue[currentSeatingPlayerId] = (newQueue[currentSeatingPlayerId] ?? []).filter((id) => id !== seatingSelectedGangsterId)
     setSeatingQueue(newQueue); setSeatingSelectedGangsterId(null); setTargetPositionId(null); setValidTargets([])
-    toast(`${playerName} placed gangster at seat #${targetPositionId}`)
 
     const allDone = Object.values(newQueue).every((q) => q.length === 0)
     if (allDone) {
       if (isInitialSeating) {
         const finalState = initializeGame(newGameState); finalState.currentPhase = "SELECT_CARD"
         setIsInitialSeating(false); setSeatingQueue({}); setSeatingPlayerOrder([]); setCurrentPlayerIndex(0); setGameState(finalState)
-        toast.success("All gangsters seated! Game begins now!")
       } else {
         const raidingPlayerIdx = newGameState.players.findIndex((p) => p.id === seatingPlayerOrder[0])
         const nextIdx = getNextActivePlayerIndex(raidingPlayerIdx, newGameState.players)
         newGameState.currentPhase = "SELECT_CARD"; setSeatingQueue({}); setSeatingPlayerOrder([]); setCurrentPlayerIndex(nextIdx); setGameState(newGameState)
-        toast.success("All gangsters re-seated!")
       }
       return
     }
@@ -762,8 +755,6 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       if ((newQueue[seatingPlayerOrder[candidate]] ?? []).length > 0) { nextIdx = candidate; break }
     }
     setSeatingCurrentIdx(nextIdx); newGameState.currentPhase = "SEATING_SELECT_GANGSTER"; setGameState(newGameState)
-    const nextPlayerName = gameState.players.find((p) => p.id === seatingPlayerOrder[nextIdx])?.name ?? ""
-    if (nextPlayerName) toast(`${nextPlayerName}'s turn — choose a gangster to seat`)
   }
 
   const handleCancelAction = () => {
@@ -776,15 +767,24 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       setGameState({ ...gameState, currentPhase: "SELECT_CARD", selectedCakeId: undefined })
       setSecondActionTaken(false)
     }
-    toast("Action cancelled — select a different card")
   }
 
   const handleSkipSecondDisplacement = () => { endTurn(gameState) }
 
   const endTurn = (currentGameState: GameState) => {
     const stateAfterWakeup = wakeUpSleepingGangsters(currentGameState, currentGameState.players[currentPlayerIndex].id)
+    const prevHandIds = new Set(stateAfterWakeup.players.map((p) => p.hand.map((c) => c.id)).flat())
     const newGameState = dealCards(stateAfterWakeup)
     const nextPlayerIndex = getNextActivePlayerIndex(currentPlayerIndex, newGameState.players)
+
+    // Highlight cards that were just drawn for the next player
+    const nextPlayer = newGameState.players[nextPlayerIndex]
+    const newIds = nextPlayer.hand.filter((c) => !prevHandIds.has(c.id)).map((c) => c.id)
+    if (newIds.length > 0) {
+      setNewlyDealtCardIds(newIds)
+      setTimeout(() => setNewlyDealtCardIds([]), 1500)
+    }
+
     setCurrentPlayerIndex(nextPlayerIndex)
     if (nextPlayerIndex <= currentPlayerIndex) newGameState.turn += 1
     newGameState.currentPhase = "SELECT_CARD"; newGameState.selectedCakeId = undefined
@@ -800,7 +800,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     setSelectedDirection(null); setTargetPositionId(null); setGameOver(false)
     setValidGangsters([]); setValidTargets([]); setValidCakes([]); setValidDirections([])
     setPillsApplied(0); setPendingPillTargetIds([]); setValidPillTargets([])
-    setFinalStandings([]); setSecondActionTaken(false); setBotLog([]); setSeatAnimations([]); setPoliceRaidActive(false); setLogEntries([]); setActiveBotPlayerId(null); setCenterCard(null)
+    setFinalStandings([]); setSecondActionTaken(false); setBotLog([]); setSeatAnimations([]); setPoliceRaidActive(false); setLogEntries([]); setActiveBotPlayerId(null); setCenterCard(null); setNewlyDealtCardIds([])
     setSeatingSelectedGangsterId(null); setSeatingCurrentIdx(0)
     if (seatingType === "manual") {
       const order = newGameState.players.map((p) => p.id)
@@ -808,7 +808,6 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       for (const p of newGameState.players) queue[p.id] = p.gangsters.map((g) => g.id)
       setSeatingPlayerOrder(order); setSeatingQueue(queue); setIsInitialSeating(true)
     } else { setSeatingPlayerOrder([]); setSeatingQueue({}); setIsInitialSeating(false) }
-    toast.success("Game restarted!")
   }
 
   const canPlaySecondDisplacement = hasCardOfType(gameState.players[currentPlayerIndex], "DISPLACEMENT")
@@ -976,6 +975,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                 seatingSelectedGangsterId={seatingSelectedGangsterId}
                 onSeatingConfirm={handleSeatingConfirm}
                 onSeatingBack={handleSeatingBack}
+                newlyDealtCardIds={newlyDealtCardIds}
               />
             )}
           </div>

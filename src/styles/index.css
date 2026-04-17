@@ -49,6 +49,17 @@
 }
 .zzz-blink { animation: zzz-blink 1.4s ease-in-out infinite; }
 
+/* ── Newly drawn card highlight ─────────────────────────────────────────────── */
+@keyframes card-new-deal {
+  0%   { box-shadow: 0 0 0 2px rgba(245, 172, 14, 0); transform: translateY(0); }
+  25%  { box-shadow: 0 0 10px 3px rgba(245, 172, 14, 0.85); transform: translateY(-4px); }
+  60%  { box-shadow: 0 0 6px 2px rgba(245, 172, 14, 0.5); transform: translateY(-2px); }
+  100% { box-shadow: 0 0 0 2px rgba(245, 172, 14, 0); transform: translateY(0); }
+}
+.card-new-deal {
+  animation: card-new-deal 1.5s ease-out forwards;
+}
+
 /* ── Card play center flash ─────────────────────────────────────────────────── */
 @keyframes card-play-flash {
   0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.65); }
