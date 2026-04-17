@@ -70,16 +70,16 @@ export default function MatchLobby() {
   const navigate = useNavigate()
   const { config, setConfig } = useMatch()
 
-  const roomCode  = config?.roomCode ?? ''
-  const playerId  = config?.hostId ?? ''
-  const playerName = config?.playerName ?? 'Player'
-  const isHost    = config?.mode === 'create'
-  // Use server's authoritative maxPlayers once we have room state; fall back to config while connecting
-  const maxPlayers = room?.maxPlayers ?? config?.settings?.maxPlayers ?? 4
-
   const [room, setRoom] = useState<RoomState | null>(null)
   const [copied, setCopied] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
+
+  const roomCode   = config?.roomCode ?? ''
+  const playerId   = config?.hostId ?? ''
+  const playerName = config?.playerName ?? 'Player'
+  const isHost     = config?.mode === 'create'
+  // Use server's authoritative maxPlayers once room state arrives; fall back to config while connecting
+  const maxPlayers = room?.maxPlayers ?? config?.settings?.maxPlayers ?? 4
 
   // ── WebSocket ────────────────────────────────────────────────────────────
 
