@@ -12,12 +12,12 @@ import { useRoomSocket } from '../features/multiplayer/useRoomSocket'
 import type { RoomState, RoomPlayer } from '../features/multiplayer/types'
 
 const PLAYER_COLOR: Record<number, string> = {
-  0: '#c9a84c',
-  1: '#6888e8',
-  2: '#e8c044',
-  3: '#44c868',
-  4: '#e87844',
-  5: '#a044e8',
+  0: '#ef4444',  // Red  — matches player1 in-game
+  1: '#3b82f6',  // Blue — matches player2
+  2: '#facc15',  // Yellow
+  3: '#22c55e',  // Green
+  4: '#f97316',  // Orange
+  5: '#a855f7',  // Purple
 }
 
 function PlayerRow({ player, index }: { player: RoomPlayer; index: number }) {

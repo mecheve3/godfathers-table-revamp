@@ -73,13 +73,22 @@ function computeActionSeats(action: Action, state: GameState): ActionSummary {
   }
 }
 
-/** Full game sync payload — game state + seating state, broadcast after every turn */
+/** Per-action visual feedback included in sync payloads so receiving clients can replay animations and logs */
+export interface SyncAction {
+  playerId: string
+  cardType: string
+  logEntry: Omit<LogEntry, "id" | "highlighted">
+  seatAnim?: { seatIds: number[]; animClass: string; durationMs?: number }
+}
+
+/** Full game sync payload — game state + seating state + action feedback, broadcast after every turn */
 export interface GameSyncPayload {
   gameState: GameState
   currentPlayerIndex: number
   seatingPlayerOrder: string[]
   seatingCurrentIdx: number
   seatingQueue: Record<string, string[]>
+  actions?: SyncAction[]
 }
 
 export interface GameBoardProps {
@@ -192,6 +201,9 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   const gameStateRef = useRef<GameState>(gameState)
   useEffect(() => { gameStateRef.current = gameState }, [gameState])
 
+  // Stores the first action of a two-action turn (displacement second play)
+  const firstActionRef = useRef<SyncAction | null>(null)
+
   // ── Multiplayer: apply state pushed from server ────────────────────────────
   useEffect(() => {
     if (!incomingSync) return
@@ -219,6 +231,28 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     setPillsApplied(0); setPendingPillTargetIds([]); setValidPillTargets([])
     setSecondActionTaken(false)
     setSeatingSelectedGangsterId(null)
+
+    // Replay visual effects from the sender's turn so this client sees animations + log entries
+    if (incomingSync.actions && incomingSync.actions.length > 0) {
+      incomingSync.actions.forEach((act, i) => {
+        setTimeout(() => {
+          addLogEntry(act.logEntry)
+          if (act.cardType === 'POLICE_RAID') {
+            setPoliceRaidActive(true)
+            setTimeout(() => setPoliceRaidActive(false), 1800)
+          } else {
+            showCenterCard(act.cardType, act.playerId)
+          }
+          if (act.seatAnim) {
+            triggerSeatAnimation(
+              act.seatAnim.seatIds,
+              act.seatAnim.animClass,
+              act.seatAnim.durationMs ?? (act.seatAnim.animClass === "seat-anim-danger" ? 2000 : 960),
+            )
+          }
+        }, i * 800)
+      })
+    }
   }, [incomingSync]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Multiplayer: host broadcasts initial game state so all clients start in sync ──
@@ -232,6 +266,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         seatingQueue: seatingType === "manual"
           ? Object.fromEntries(gameState.players.map((p) => [p.id, p.gangsters.map((g) => g.id)]))
           : {},
+        actions: [],
       })
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -460,8 +495,16 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         setValidGangsters([]); setValidTargets([]); setValidCakes([]); setValidDirections([])
         setPillsApplied(0); setPendingPillTargetIds([]); setValidPillTargets([])
         setSecondActionTaken(false)
-        // Broadcast bot turn result to other clients
-        onTurnEnd?.({ gameState: newState, currentPlayerIndex: nextPlayerIndex, seatingPlayerOrder: [], seatingCurrentIdx: 0, seatingQueue: {} })
+        // Broadcast bot turn result (with action feedback) to other clients
+        const botSyncActions: SyncAction[] = logEntryData.map((le, i) => ({
+          playerId: le.playerId,
+          cardType: playedCards[i]?.cardType ?? '',
+          logEntry: le,
+          seatAnim: actionSummaries[i]?.animClass
+            ? { seatIds: actionSummaries[i].seatIds, animClass: actionSummaries[i].animClass }
+            : undefined,
+        }))
+        onTurnEnd?.({ gameState: newState, currentPlayerIndex: nextPlayerIndex, seatingPlayerOrder: [], seatingCurrentIdx: 0, seatingQueue: {}, actions: botSyncActions })
       }, longestAnimMs)
     }, 4000)
 
@@ -509,7 +552,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         if ((newQueue[seatingPlayerOrder[candidate]] ?? []).length > 0) { nextIdx = candidate; break }
       }
       setSeatingCurrentIdx(nextIdx); newGameState.currentPhase = "SEATING_SELECT_GANGSTER"; setGameState(newGameState)
-      onTurnEnd?.({ gameState: newGameState, currentPlayerIndex: nextIdx, seatingPlayerOrder: seatingPlayerOrder, seatingCurrentIdx: nextIdx, seatingQueue: newQueue })
+      onTurnEnd?.({ gameState: newGameState, currentPlayerIndex: nextIdx, seatingPlayerOrder: seatingPlayerOrder, seatingCurrentIdx: nextIdx, seatingQueue: newQueue, actions: [] })
     }, 400)
 
     return () => clearTimeout(timer)
@@ -534,7 +577,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       newGameState.discardPile = [discardedCard]
     }
     if (newGameState.deck.length > 0) { const newCard = newGameState.deck.shift(); if (newCard) newGameState.players[currentPlayerIndex].hand.push(newCard) }
-    endTurn(newGameState)
+    endTurn(newGameState, [])
   }
 
   const handleSelectCard = (cardId: string) => {
@@ -742,7 +785,10 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       setSeatingPlayerOrder(rotated); setSeatingCurrentIdx(0); setSeatingQueue(queue); setSeatingSelectedGangsterId(null); setIsInitialSeating(false)
       setSelectedCardId(null); setSelectedGangsterIndex(null); setSelectedDirection(null); setTargetPositionId(null)
       setValidGangsters([]); setValidTargets([]); setValidCakes([]); setValidDirections([])
-      addLogEntry({ round: gameState.turn, playerId: currentPlayer.id, playerName: currentPlayer.name, message: `${currentPlayer.name} triggers Police Raid — all gangsters cleared! Re-seating begins.`, type: "system" })
+      const policeRaidLogEntry: Omit<LogEntry, "id" | "highlighted"> = { round: gameState.turn, playerId: currentPlayer.id, playerName: currentPlayer.name, message: `${currentPlayer.name} triggers Police Raid — all gangsters cleared! Re-seating begins.`, type: "system" }
+      addLogEntry(policeRaidLogEntry)
+      // Broadcast immediately so other clients enter seating mode at the same time
+      onTurnEnd?.({ gameState: newGameState, currentPlayerIndex: currentPlayerIndex, seatingPlayerOrder: rotated, seatingCurrentIdx: 0, seatingQueue: queue, actions: [{ playerId: currentPlayer.id, cardType: 'POLICE_RAID', logEntry: policeRaidLogEntry }] })
       setGameState(newGameState); return
     }
 
@@ -768,26 +814,44 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     try { newGameState = performAction(newGameState, action) }
     catch (err) { return }
 
-    addLogEntry({
+    const actionLogEntry: Omit<LogEntry, "id" | "highlighted"> = {
       round: gameState.turn,
       playerId: currentPlayer.id,
       playerName: currentPlayer.name,
       message: buildActionLog(action, preActionState, newGameState),
       type: "action",
-    })
+    }
+    addLogEntry(actionLogEntry)
 
     showCenterCard(card.type, currentPlayer.id)
+
+    const currentSyncAction: SyncAction = {
+      playerId: currentPlayer.id,
+      cardType: card.type,
+      logEntry: actionLogEntry,
+      seatAnim: feedback.animClass ? { seatIds: feedback.seatIds, animClass: feedback.animClass } : undefined,
+    }
 
     setSelectedCardId(null); setSelectedGangsterIndex(null); setSelectedDirection(null); setTargetPositionId(null)
     setValidCakes([]); setValidDirections([]); setPillsApplied(0); setPendingPillTargetIds([]); setValidPillTargets([])
     newGameState.selectedCakeId = undefined
 
-    if (secondActionTaken) { endTurn(newGameState); return }
+    if (secondActionTaken) {
+      const allActions = [firstActionRef.current, currentSyncAction].filter((a): a is SyncAction => a !== null)
+      firstActionRef.current = null
+      endTurn(newGameState, allActions)
+      return
+    }
 
     const hasDisplacementCard = hasCardOfType(newGameState.players[currentPlayerIndex], "DISPLACEMENT")
     const hasEmptySeats = newGameState.board.some((p) => p.occupiedBy === null)
-    if (hasDisplacementCard && hasEmptySeats) { newGameState.currentPhase = "SECOND_DISPLACEMENT"; setGameState(newGameState) }
-    else endTurn(newGameState)
+    if (hasDisplacementCard && hasEmptySeats) {
+      firstActionRef.current = currentSyncAction
+      newGameState.currentPhase = "SECOND_DISPLACEMENT"; setGameState(newGameState)
+    } else {
+      firstActionRef.current = null
+      endTurn(newGameState, [currentSyncAction])
+    }
   }
 
   const handlePillTargetSelect = (gangsterId: string) => {
@@ -841,12 +905,12 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       if (isInitialSeating) {
         const finalState = initializeGame(newGameState); finalState.currentPhase = "SELECT_CARD"
         setIsInitialSeating(false); setSeatingQueue({}); setSeatingPlayerOrder([]); setCurrentPlayerIndex(0); setGameState(finalState)
-        onTurnEnd?.({ gameState: finalState, currentPlayerIndex: 0, seatingPlayerOrder: [], seatingCurrentIdx: 0, seatingQueue: {} })
+        onTurnEnd?.({ gameState: finalState, currentPlayerIndex: 0, seatingPlayerOrder: [], seatingCurrentIdx: 0, seatingQueue: {}, actions: [] })
       } else {
         const raidingPlayerIdx = newGameState.players.findIndex((p) => p.id === seatingPlayerOrder[0])
         const nextIdx = getNextActivePlayerIndex(raidingPlayerIdx, newGameState.players)
         newGameState.currentPhase = "SELECT_CARD"; setSeatingQueue({}); setSeatingPlayerOrder([]); setCurrentPlayerIndex(nextIdx); setGameState(newGameState)
-        onTurnEnd?.({ gameState: newGameState, currentPlayerIndex: nextIdx, seatingPlayerOrder: [], seatingCurrentIdx: 0, seatingQueue: {} })
+        onTurnEnd?.({ gameState: newGameState, currentPlayerIndex: nextIdx, seatingPlayerOrder: [], seatingCurrentIdx: 0, seatingQueue: {}, actions: [] })
       }
       return
     }
@@ -857,7 +921,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       if ((newQueue[seatingPlayerOrder[candidate]] ?? []).length > 0) { nextIdx = candidate; break }
     }
     setSeatingCurrentIdx(nextIdx); newGameState.currentPhase = "SEATING_SELECT_GANGSTER"; setGameState(newGameState)
-    onTurnEnd?.({ gameState: newGameState, currentPlayerIndex: nextIdx, seatingPlayerOrder: seatingPlayerOrder, seatingCurrentIdx: nextIdx, seatingQueue: newQueue })
+    onTurnEnd?.({ gameState: newGameState, currentPlayerIndex: nextIdx, seatingPlayerOrder: seatingPlayerOrder, seatingCurrentIdx: nextIdx, seatingQueue: newQueue, actions: [] })
   }
 
   const handleCancelAction = () => {
@@ -872,9 +936,13 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     }
   }
 
-  const handleSkipSecondDisplacement = () => { endTurn(gameState) }
+  const handleSkipSecondDisplacement = () => {
+    const acts = firstActionRef.current ? [firstActionRef.current] : []
+    firstActionRef.current = null
+    endTurn(gameState, acts)
+  }
 
-  const endTurn = (currentGameState: GameState) => {
+  const endTurn = (currentGameState: GameState, actions: SyncAction[] = []) => {
     const stateAfterWakeup = wakeUpSleepingGangsters(currentGameState, currentGameState.players[currentPlayerIndex].id)
     const prevHandIds = new Set(stateAfterWakeup.players.map((p) => p.hand.map((c) => c.id)).flat())
     const newGameState = dealCards(stateAfterWakeup)
@@ -896,7 +964,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     setPillsApplied(0); setPendingPillTargetIds([]); setValidPillTargets([]); setSecondActionTaken(false)
     setGameState(newGameState)
     // Broadcast state to other clients in multiplayer
-    onTurnEnd?.({ gameState: newGameState, currentPlayerIndex: nextPlayerIndex, seatingPlayerOrder: [], seatingCurrentIdx: 0, seatingQueue: {} })
+    onTurnEnd?.({ gameState: newGameState, currentPlayerIndex: nextPlayerIndex, seatingPlayerOrder: [], seatingCurrentIdx: 0, seatingQueue: {}, actions })
   }
 
   const restartGame = () => {
