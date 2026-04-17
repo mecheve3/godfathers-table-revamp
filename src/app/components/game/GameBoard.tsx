@@ -91,6 +91,12 @@ export interface GameSyncPayload {
   actions?: SyncAction[]
   /** True when this payload represents the very first seating phase (not a police raid re-seat) */
   isInitialSeating?: boolean
+  /**
+   * Pre-computed payment log for the next player's collection at the start of their turn.
+   * Included so receiving clients can replay it in the correct position (after action logs)
+   * rather than letting their local payment useEffect fire it synchronously out of order.
+   */
+  paymentLog?: Omit<LogEntry, "id" | "highlighted">
 }
 
 export interface GameBoardProps {
@@ -211,11 +217,20 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   // Prevents the initial broadcast from firing more than once (even if socketStatus flaps)
   const initialBroadcastDone = useRef(false)
 
+  // When true, the payment useEffect skips addLogEntry (state update still runs).
+  // Set by the incomingSync handler when paymentLog is included in the payload;
+  // the handler replays the log itself at the right position in the action sequence.
+  const suppressPaymentLogRef = useRef(false)
+
   // ── Multiplayer: apply state pushed from server ────────────────────────────
   useEffect(() => {
     if (!incomingSync) return
     // Don't interrupt this client while they are mid-seating-action
     if (gameState.currentPhase === "SEATING_SELECT_SEAT" || gameState.currentPhase === "SEATING_CONFIRM") return
+
+    // If the payload includes a pre-computed payment log, tell the payment useEffect
+    // to skip addLogEntry — we'll replay it ourselves below in the correct order.
+    if (incomingSync.paymentLog) suppressPaymentLogRef.current = true
 
     setGameState(incomingSync.gameState)
     setCurrentPlayerIndex(incomingSync.currentPlayerIndex)
@@ -261,6 +276,15 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         }, i * 800)
       })
     }
+
+    // Replay the next player's collection log AFTER all action logs so the order is:
+    // [action1, action2, …] → [nextPlayer collects]
+    // The payment useEffect will skip its own addLogEntry because suppressPaymentLogRef is set.
+    if (incomingSync.paymentLog) {
+      const delay = (incomingSync.actions?.length ?? 0) * 800
+      const log = incomingSync.paymentLog
+      setTimeout(() => { addLogEntry(log) }, delay)
+    }
   }, [incomingSync]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Multiplayer: host broadcasts initial game state once the WebSocket is open ──
@@ -270,6 +294,10 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     if (socketStatus !== 'open') return
     if (initialBroadcastDone.current) return
     initialBroadcastDone.current = true
+    const firstPayment = seatingType !== "manual" ? calculatePayment(gameState.players[0], gameState.board) : 0
+    const paymentLogEntry: Omit<LogEntry, "id" | "highlighted"> | undefined = firstPayment > 0
+      ? { round: gameState.turn, playerId: gameState.players[0].id, playerName: gameState.players[0].name, message: buildPaymentLog(gameState.players[0].name, firstPayment), type: "payment" }
+      : undefined
     onTurnEnd?.({
       gameState,
       currentPlayerIndex: 0,
@@ -280,6 +308,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         : {},
       actions: [],
       isInitialSeating: seatingType === "manual",
+      paymentLog: paymentLogEntry,
     })
   }, [socketStatus]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -347,7 +376,12 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         updatedPlayers[currentPlayerIndex] = { ...currentPlayer, money: currentPlayer.money + payment }
         setGameState({ ...gameState, players: updatedPlayers, bankMoney: Math.max(0, gameState.bankMoney - payment) })
         if (gameMode !== "solo" || currentPlayer.id === "player1") playSFX("bank", 0.7)
-        addLogEntry({ round: gameState.turn, playerId: currentPlayer.id, playerName: currentPlayer.name, message: buildPaymentLog(currentPlayer.name, payment), type: "payment" })
+        // In multiplayer, the incomingSync handler replays this log at the correct position
+        // in the action sequence — suppress the local log to avoid ordering issues on P2+
+        if (!suppressPaymentLogRef.current) {
+          addLogEntry({ round: gameState.turn, playerId: currentPlayer.id, playerName: currentPlayer.name, message: buildPaymentLog(currentPlayer.name, payment), type: "payment" })
+        }
+        suppressPaymentLogRef.current = false
       }
     }
   }, [currentPlayerIndex, gameState.currentPhase]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -975,8 +1009,16 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     setValidGangsters([]); setValidTargets([]); setValidCakes([]); setValidDirections([])
     setPillsApplied(0); setPendingPillTargetIds([]); setValidPillTargets([]); setSecondActionTaken(false)
     setGameState(newGameState)
+
+    // Pre-compute next player's collection so receiving clients can replay the log
+    // in the correct order (after action logs) instead of firing it synchronously
+    const nextPayment = calculatePayment(newGameState.players[nextPlayerIndex], newGameState.board)
+    const paymentLogEntry: Omit<LogEntry, "id" | "highlighted"> | undefined = nextPayment > 0
+      ? { round: newGameState.turn, playerId: newGameState.players[nextPlayerIndex].id, playerName: newGameState.players[nextPlayerIndex].name, message: buildPaymentLog(newGameState.players[nextPlayerIndex].name, nextPayment), type: "payment" }
+      : undefined
+
     // Broadcast state to other clients in multiplayer
-    onTurnEnd?.({ gameState: newGameState, currentPlayerIndex: nextPlayerIndex, seatingPlayerOrder: [], seatingCurrentIdx: 0, seatingQueue: {}, actions })
+    onTurnEnd?.({ gameState: newGameState, currentPlayerIndex: nextPlayerIndex, seatingPlayerOrder: [], seatingCurrentIdx: 0, seatingQueue: {}, actions, paymentLog: paymentLogEntry })
   }
 
   const restartGame = () => {
