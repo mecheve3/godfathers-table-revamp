@@ -82,14 +82,21 @@ export interface GameBoardProps {
   localPlayerIndex?: number
   /** Explicit list of CPU player IDs for bot AI (overrides solo-mode default) */
   cpuPlayerIds?: string[]
+  /** New game state pushed from the server (multiplayer sync) */
+  incomingState?: { gameState: GameState; currentPlayerIndex: number }
+  /** Called after every turn ends — used to broadcast state to other clients */
+  onTurnEnd?: (gameState: GameState, currentPlayerIndex: number) => void
   onReturnToHome: () => void
   onGameFinished?: (winnerId: string, winnerType: "HUMAN" | "CPU") => void
 }
 
-export default function GameBoard({ playerCount, seatingType = "automatic", gameMode = "hotseat", playerNames, localPlayerIndex, cpuPlayerIds, onReturnToHome, onGameFinished }: GameBoardProps) {
+export default function GameBoard({ playerCount, seatingType = "automatic", gameMode = "hotseat", playerNames, localPlayerIndex, cpuPlayerIds, incomingState, onTurnEnd, onReturnToHome, onGameFinished }: GameBoardProps) {
   // In solo mode use default CPU IDs; in multiplayer use the explicit list from slots
   const botPlayerIds = cpuPlayerIds
     ?? (gameMode === "solo" ? Array.from({ length: playerCount - 1 }, (_, i) => `player${i + 2}`) : [])
+
+  // In multiplayer, only the host (localPlayerIndex === 0) runs bot AI
+  const shouldRunBots = gameMode !== "multiplayer" || localPlayerIndex === 0
 
   const getInitialState = (): GameState => {
     let base: GameState
@@ -167,6 +174,18 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
 
   const gameStateRef = useRef<GameState>(gameState)
   useEffect(() => { gameStateRef.current = gameState }, [gameState])
+
+  // ── Multiplayer: apply state pushed from server ────────────────────────────
+  useEffect(() => {
+    if (!incomingState) return
+    setGameState(incomingState.gameState)
+    setCurrentPlayerIndex(incomingState.currentPlayerIndex)
+    // Clear any local selection state
+    setSelectedCardId(null); setSelectedGangsterIndex(null); setSelectedDirection(null); setTargetPositionId(null)
+    setValidGangsters([]); setValidTargets([]); setValidCakes([]); setValidDirections([])
+    setPillsApplied(0); setPendingPillTargetIds([]); setValidPillTargets([])
+    setSecondActionTaken(false)
+  }, [incomingState])
 
   // Tracks "playerId:turn" to prevent double-paying on phase changes (e.g. cancel)
   const paymentProcessedRef = useRef<string>("")
@@ -334,7 +353,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   }
 
   useEffect(() => {
-    if (gameMode !== "solo" || gameOver) return
+    if ((!shouldRunBots || gameMode === "hotseat") || gameOver) return
     const currentPlayer = gameState.players[currentPlayerIndex]
     if (!botPlayerIds.includes(currentPlayer.id)) return
     if (gameState.currentPhase !== "SELECT_CARD") return
@@ -392,6 +411,8 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         setValidGangsters([]); setValidTargets([]); setValidCakes([]); setValidDirections([])
         setPillsApplied(0); setPendingPillTargetIds([]); setValidPillTargets([])
         setSecondActionTaken(false)
+        // Broadcast bot turn result to other clients
+        onTurnEnd?.(newState, nextPlayerIndex)
       }, longestAnimMs)
     }, 4000)
 
@@ -768,10 +789,12 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       if (isInitialSeating) {
         const finalState = initializeGame(newGameState); finalState.currentPhase = "SELECT_CARD"
         setIsInitialSeating(false); setSeatingQueue({}); setSeatingPlayerOrder([]); setCurrentPlayerIndex(0); setGameState(finalState)
+        onTurnEnd?.(finalState, 0)
       } else {
         const raidingPlayerIdx = newGameState.players.findIndex((p) => p.id === seatingPlayerOrder[0])
         const nextIdx = getNextActivePlayerIndex(raidingPlayerIdx, newGameState.players)
         newGameState.currentPhase = "SELECT_CARD"; setSeatingQueue({}); setSeatingPlayerOrder([]); setCurrentPlayerIndex(nextIdx); setGameState(newGameState)
+        onTurnEnd?.(newGameState, nextIdx)
       }
       return
     }
@@ -782,6 +805,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       if ((newQueue[seatingPlayerOrder[candidate]] ?? []).length > 0) { nextIdx = candidate; break }
     }
     setSeatingCurrentIdx(nextIdx); newGameState.currentPhase = "SEATING_SELECT_GANGSTER"; setGameState(newGameState)
+    onTurnEnd?.(newGameState, nextIdx)
   }
 
   const handleCancelAction = () => {
@@ -819,6 +843,8 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     setValidGangsters([]); setValidTargets([]); setValidCakes([]); setValidDirections([])
     setPillsApplied(0); setPendingPillTargetIds([]); setValidPillTargets([]); setSecondActionTaken(false)
     setGameState(newGameState)
+    // Broadcast state to other clients in multiplayer
+    onTurnEnd?.(newGameState, nextPlayerIndex)
   }
 
   const restartGame = () => {

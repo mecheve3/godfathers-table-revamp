@@ -8,12 +8,14 @@ export interface UseRoomSocketOptions {
   playerName: string
   onRoomState?: (room: RoomState) => void
   onGameStarted?: (room: RoomState) => void
+  onGameState?: (gameState: unknown, currentPlayerIndex: number) => void
   onError?: (message: string) => void
 }
 
 export interface UseRoomSocketResult {
   status: SocketStatus
   send: (msg: ClientMessage) => void
+  sendGameState: (gameState: unknown, currentPlayerIndex: number) => void
   disconnect: () => void
 }
 
@@ -23,11 +25,16 @@ export function useRoomSocket({
   playerName,
   onRoomState,
   onGameStarted,
+  onGameState,
   onError,
 }: UseRoomSocketOptions): UseRoomSocketResult {
   const [status, setStatus] = useState<SocketStatus>('idle')
   const wsRef = useRef<WebSocket | null>(null)
   const intentionalClose = useRef(false)
+
+  // Keep callbacks in refs so the socket handler always calls the latest version
+  const onGameStateRef = useRef(onGameState)
+  useEffect(() => { onGameStateRef.current = onGameState }, [onGameState])
 
   useEffect(() => {
     if (!roomCode || !playerId) return
@@ -53,18 +60,16 @@ export function useRoomSocket({
         case 'ROOM_STATE':
           onRoomState?.(msg.room)
           break
-        case 'PLAYER_JOINED':
-          // Room state will follow — handled by ROOM_STATE
-          break
-        case 'PLAYER_LEFT':
-          // Room state will follow — handled by ROOM_STATE
-          break
         case 'GAME_STARTED':
           onGameStarted?.(msg.room)
+          break
+        case 'GAME_STATE':
+          onGameStateRef.current?.(msg.gameState, msg.currentPlayerIndex)
           break
         case 'ERROR':
           onError?.(msg.message)
           break
+        // PLAYER_JOINED / PLAYER_LEFT handled via ROOM_STATE broadcast
       }
     }
 
@@ -91,10 +96,16 @@ export function useRoomSocket({
     }
   }, [])
 
+  const sendGameState = useCallback((gameState: unknown, currentPlayerIndex: number) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'GAME_ACTION', gameState, currentPlayerIndex }))
+    }
+  }, [])
+
   const disconnect = useCallback(() => {
     intentionalClose.current = true
     wsRef.current?.close(1000, 'User left')
   }, [])
 
-  return { status, send, disconnect }
+  return { status, send, sendGameState, disconnect }
 }

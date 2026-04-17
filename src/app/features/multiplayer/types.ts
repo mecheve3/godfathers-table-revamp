@@ -25,12 +25,14 @@ export interface RoomState {
 export type ClientMessage =
   | { type: 'START_GAME' }
   | { type: 'LEAVE_ROOM' }
+  | { type: 'GAME_ACTION'; gameState: unknown; currentPlayerIndex: number }
 
 export type ServerMessage =
   | { type: 'ROOM_STATE';    room: RoomState }
   | { type: 'PLAYER_JOINED'; player: RoomPlayer }
   | { type: 'PLAYER_LEFT';   playerId: string }
   | { type: 'GAME_STARTED';  room: RoomState }
+  | { type: 'GAME_STATE';    gameState: unknown; currentPlayerIndex: number }
   | { type: 'ERROR';         message: string }
 
 // ── Connection status ────────────────────────────────────────────────────────

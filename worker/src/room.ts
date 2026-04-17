@@ -96,8 +96,13 @@ export class GameRoom implements DurableObject {
 
     const room = await this.getRoom()
     if (!room) return new Response('Room not found', { status: 404 })
+
+    // IN_GAME: only existing players may reconnect; new joins are rejected
     if (room.status !== 'LOBBY') {
-      return Response.json({ error: 'Game already started' }, { status: 409 })
+      const isKnownPlayer = room.players.some((p) => p.id === playerId)
+      if (!isKnownPlayer) {
+        return Response.json({ error: 'Game already started' }, { status: 409 })
+      }
     }
 
     const pair = new WebSocketPair()
@@ -128,9 +133,16 @@ export class GameRoom implements DurableObject {
 
     await this.saveRoom(room)
 
-    // Broadcast full state to ALL connected clients (including this one)
-    // This is the simplest way to keep every client in sync
-    this.broadcastAll({ type: 'ROOM_STATE', room })
+    if (room.status === 'LOBBY') {
+      // Broadcast full lobby state to all connected clients
+      this.broadcastAll({ type: 'ROOM_STATE', room })
+    } else {
+      // IN_GAME reconnect: send only to this client so they catch up
+      this.send(server, { type: 'ROOM_STATE', room })
+      // Also send the latest game state so they can resume immediately
+      const saved = await this.state.storage.get<{ gameState: unknown; currentPlayerIndex: number }>('gameState')
+      if (saved) this.send(server, { type: 'GAME_STATE', ...saved })
+    }
 
     return new Response(null, { status: 101, webSocket: client })
   }
@@ -180,6 +192,19 @@ export class GameRoom implements DurableObject {
         room.status = 'IN_GAME'
         await this.saveRoom(room)
         this.broadcastAll({ type: 'GAME_STARTED', room })
+        break
+      }
+
+      case 'GAME_ACTION': {
+        if (room.status !== 'IN_GAME') {
+          this.send(ws, { type: 'ERROR', message: 'Game not in progress' })
+          return
+        }
+        const payload = { gameState: msg.gameState, currentPlayerIndex: msg.currentPlayerIndex }
+        // Persist so late-joiners / reconnects get the latest state
+        await this.state.storage.put('gameState', payload)
+        // Broadcast to everyone else — sender already applied the state locally
+        this.broadcastAll({ type: 'GAME_STATE', ...payload }, ws)
         break
       }
 
