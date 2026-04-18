@@ -301,8 +301,8 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
           if (act.spriteAnim) {
             const { seatIds, imagePath } = act.spriteAnim
             if (act.cardType === "DISPLACEMENT" && seatIds.length >= 2) {
-              triggerSeatSprite([seatIds[0]], imagePath, 400)
-              setTimeout(() => triggerSeatSprite([seatIds[1]], imagePath, 400), 380)
+              triggerSeatSprite([seatIds[0]], imagePath, 700)
+              setTimeout(() => triggerSeatSprite([seatIds[1]], imagePath, 700), 380)
             } else {
               const spriteSeats = (act.cardType === "KNIFE" || act.cardType === "GUN" || act.cardType === "PASS_CAKE")
                 ? seatIds.slice(1) : seatIds
@@ -559,6 +559,20 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
             if (summary.soundName) {
               const vol = summary.soundName === "explodecake" ? 0.3 : 0.7
               playSFX(summary.soundName, vol, summary.soundDelay)
+            }
+            // Sprite overlays for bot actions (mirror human-turn logic)
+            const cardType = playedCards[i]?.cardType
+            const spritePath = cardType ? CARD_SPRITE[cardType] : undefined
+            if (spritePath && summary.seatIds.length > 0) {
+              if (cardType === "DISPLACEMENT" && summary.seatIds.length >= 2) {
+                triggerSeatSprite([summary.seatIds[0]], spritePath, 700)
+                setTimeout(() => triggerSeatSprite([summary.seatIds[1]], spritePath, 700), 380)
+              } else {
+                const spriteSeats = (cardType === "KNIFE" || cardType === "GUN" || cardType === "PASS_CAKE")
+                  ? summary.seatIds.slice(1)
+                  : summary.seatIds
+                triggerSeatSprite(spriteSeats, spritePath, 700)
+              }
             }
           }
         }, i * ACTION_STAGGER)
@@ -951,9 +965,11 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     const spritePath = CARD_SPRITE[card.type]
     if (spritePath && feedback.seatIds.length > 0) {
       if (card.type === "DISPLACEMENT" && feedback.seatIds.length >= 2) {
-        // Directional: blink origin first, then destination (old → new)
-        triggerSeatSprite([feedback.seatIds[0]], spritePath, 400)
-        setTimeout(() => triggerSeatSprite([feedback.seatIds[1]], spritePath, 400), 380)
+        // Directional: blink origin first, then destination (old → new).
+        // Duration must exceed animation length (3 × 220ms = 660ms) so element
+        // stays in the DOM until the animation completes.
+        triggerSeatSprite([feedback.seatIds[0]], spritePath, 700)
+        setTimeout(() => triggerSeatSprite([feedback.seatIds[1]], spritePath, 700), 380)
       } else {
         // knife/gun: sprite on target seat only (skip shooter)
         // pass_cake: sprite on destination seat only (skip origin)

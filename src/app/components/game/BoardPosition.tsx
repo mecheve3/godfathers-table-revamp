@@ -125,12 +125,23 @@ export default function BoardPosition({ position, gameState, selected, highlight
             <span className="text-sm font-black text-blue-100 leading-none zzz-blink drop-shadow-lg">Zzz</span>
           </div>
         )}
-        {spriteOverlay && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-            <img src={spriteOverlay} alt="" className="w-full h-full object-contain sprite-blink" draggable={false} />
-          </div>
-        )}
       </div>
+
+      {/* Sprite overlay — rendered as a sibling OUTSIDE the overflow:hidden seat circle
+          so the scale animation is never clipped. Same positional anchor as the seat. */}
+      {spriteOverlay && (
+        <div
+          className="absolute w-10 h-10 md:w-14 md:h-14 pointer-events-none flex items-center justify-center"
+          style={{ ...style, zIndex: 30 }}
+        >
+          <img
+            src={spriteOverlay}
+            alt=""
+            className="w-full h-full object-contain sprite-blink"
+            draggable={false}
+          />
+        </div>
+      )}
 
       {cakes.map((cake, index) => (
         <div
