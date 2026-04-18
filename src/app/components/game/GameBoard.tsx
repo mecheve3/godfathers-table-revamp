@@ -75,11 +75,11 @@ function computeActionSeats(action: Action, state: GameState): ActionSummary {
 
 /** Sprite image path for each card type — rendered as a blinking overlay on affected seats */
 const CARD_SPRITE: Partial<Record<string, string>> = {
-  KNIFE: '/images/cards/knife.png',
-  GUN: '/images/cards/gun.png',
-  PASS_CAKE: '/images/cards/passcake.png',
-  EXPLODE_CAKE: '/images/cards/explodecake.png',
-  DISPLACEMENT: '/images/cards/displacement.png',
+  KNIFE:        '/images/Sprites/knifesprite.png',
+  GUN:          '/images/Sprites/gunsprite.png',
+  PASS_CAKE:    '/images/Sprites/passcakesprite.png',
+  EXPLODE_CAKE: '/images/Sprites/explosionsprite.png',
+  DISPLACEMENT: '/images/Sprites/displacementsprite.png',
 }
 
 /** Per-action visual feedback included in sync payloads so receiving clients can replay animations and logs */
@@ -301,12 +301,12 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
           if (act.spriteAnim) {
             const { seatIds, imagePath } = act.spriteAnim
             if (act.cardType === "DISPLACEMENT" && seatIds.length >= 2) {
-              triggerSeatSprite([seatIds[0]], imagePath, 500)
-              setTimeout(() => triggerSeatSprite([seatIds[1]], imagePath, 500), 520)
+              triggerSeatSprite([seatIds[0]], imagePath, 400)
+              setTimeout(() => triggerSeatSprite([seatIds[1]], imagePath, 400), 380)
             } else {
-              const spriteSeats = (act.cardType === "KNIFE" || act.cardType === "GUN")
+              const spriteSeats = (act.cardType === "KNIFE" || act.cardType === "GUN" || act.cardType === "PASS_CAKE")
                 ? seatIds.slice(1) : seatIds
-              triggerSeatSprite(spriteSeats, imagePath, 800)
+              triggerSeatSprite(spriteSeats, imagePath, 700)
             }
           }
           if (act.sound) {
@@ -951,15 +951,17 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     const spritePath = CARD_SPRITE[card.type]
     if (spritePath && feedback.seatIds.length > 0) {
       if (card.type === "DISPLACEMENT" && feedback.seatIds.length >= 2) {
-        // Blink at origin first, then destination
-        triggerSeatSprite([feedback.seatIds[0]], spritePath, 500)
-        setTimeout(() => triggerSeatSprite([feedback.seatIds[1]], spritePath, 500), 520)
+        // Directional: blink origin first, then destination (old → new)
+        triggerSeatSprite([feedback.seatIds[0]], spritePath, 400)
+        setTimeout(() => triggerSeatSprite([feedback.seatIds[1]], spritePath, 400), 380)
       } else {
-        // For knife/gun show sprite only on target seat; for cakes show on all
-        const spriteSeats = (card.type === "KNIFE" || card.type === "GUN")
-          ? feedback.seatIds.slice(1)   // skip shooter, highlight target
+        // knife/gun: sprite on target seat only (skip shooter)
+        // pass_cake: sprite on destination seat only (skip origin)
+        // explode_cake / sleeping_pills: all affected seats simultaneously
+        const spriteSeats = (card.type === "KNIFE" || card.type === "GUN" || card.type === "PASS_CAKE")
+          ? feedback.seatIds.slice(1)
           : feedback.seatIds
-        triggerSeatSprite(spriteSeats, spritePath, 800)
+        triggerSeatSprite(spriteSeats, spritePath, 700)
       }
     }
 

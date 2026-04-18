@@ -146,7 +146,7 @@ export default function BoardPosition({ position, gameState, selected, highlight
           onClick={(e) => { e.stopPropagation(); if (onCakeClick) onCakeClick(cake.id); else onClick() }}
         >
           <img
-            src="/images/cards/explodecake.png"
+            src="/images/Sprites/cake.png"
             alt="cake bomb"
             className="w-full h-full object-cover"
             draggable={false}
