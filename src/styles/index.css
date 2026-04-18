@@ -52,6 +52,15 @@
   animation: sprite-blink 0.18s steps(1, end) 4;
 }
 
+/* ── Cake bomb pulsing indicator ───────────────────────────────────────────── */
+@keyframes cake-bomb-pulse {
+  0%, 100% { box-shadow: 0 0 4px 2px rgba(255, 200, 0, 0.7); transform: scale(1);    }
+  50%       { box-shadow: 0 0 10px 5px rgba(255, 80, 0, 0.9); transform: scale(1.12); }
+}
+.cake-bomb-blink {
+  animation: cake-bomb-pulse 0.9s ease-in-out infinite;
+}
+
 /* ── Sleeping gangster Zzz blink ────────────────────────────────────────────── */
 @keyframes zzz-blink {
   0%, 100% { opacity: 1;   transform: scale(1);    }

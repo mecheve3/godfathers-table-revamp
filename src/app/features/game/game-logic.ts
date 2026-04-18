@@ -1352,6 +1352,7 @@ export const isCardPlayable = (gameState: GameState, playerId: string, cardId: s
       // Check if player has any gangsters that can use a knife
       return player.gangsters.some((gangster, index) => {
         if (gangster.position === null) return false
+        if (gangster.status === "sleeping") return false
 
         const position = gameState.board.find((pos) => pos.id === gangster.position)
         if (!position) return false
@@ -1370,6 +1371,7 @@ export const isCardPlayable = (gameState: GameState, playerId: string, cardId: s
       // Check if player has any gangsters that can use a gun
       return player.gangsters.some((gangster, index) => {
         if (gangster.position === null) return false
+        if (gangster.status === "sleeping") return false
 
         const position = gameState.board.find((pos) => pos.id === gangster.position)
         if (!position) return false

@@ -135,17 +135,22 @@ export default function BoardPosition({ position, gameState, selected, highlight
       {cakes.map((cake, index) => (
         <div
           key={cake.id}
-          className="absolute w-7 h-7 rounded-full border-2 border-white flex items-center justify-center animate-pulse cursor-pointer"
+          className="absolute w-8 h-8 rounded-full border-2 border-white flex items-center justify-center cursor-pointer cake-bomb-blink overflow-hidden"
           style={{
             backgroundColor: cake.color,
-            left: `calc(${style.left} + ${index === 0 ? "-18px" : "18px"})`,
-            top: `calc(${style.top} + ${index === 0 ? "-18px" : "18px"})`,
+            left: `calc(${style.left} + ${index === 0 ? "-20px" : "20px"})`,
+            top: `calc(${style.top} + ${index === 0 ? "-20px" : "20px"})`,
             zIndex: 5,
           }}
           title={`Cake placed on round ${cake.roundPlaced} — explodes next round`}
           onClick={(e) => { e.stopPropagation(); if (onCakeClick) onCakeClick(cake.id); else onClick() }}
         >
-          <span className="text-xs font-black leading-none select-none" style={{ color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>B</span>
+          <img
+            src="/images/cards/explodecake.png"
+            alt="cake bomb"
+            className="w-full h-full object-cover"
+            draggable={false}
+          />
         </div>
       ))}
     </>

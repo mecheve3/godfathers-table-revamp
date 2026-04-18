@@ -75,11 +75,11 @@ function computeActionSeats(action: Action, state: GameState): ActionSummary {
 
 /** Sprite image path for each card type — rendered as a blinking overlay on affected seats */
 const CARD_SPRITE: Partial<Record<string, string>> = {
-  KNIFE: '/images/Sprites/knife.png',
-  GUN: '/images/Sprites/gun.png',
-  PASS_CAKE: '/images/Sprites/passcake.png',
-  EXPLODE_CAKE: '/images/Sprites/explodecake.png',
-  DISPLACEMENT: '/images/Sprites/displacement.png',
+  KNIFE: '/images/cards/knife.png',
+  GUN: '/images/cards/gun.png',
+  PASS_CAKE: '/images/cards/passcake.png',
+  EXPLODE_CAKE: '/images/cards/explodecake.png',
+  DISPLACEMENT: '/images/cards/displacement.png',
 }
 
 /** Per-action visual feedback included in sync payloads so receiving clients can replay animations and logs */
@@ -579,6 +579,8 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         : 0
 
       setTimeout(() => {
+        // Compute newly dealt cards for the next (human) player before updating state
+        const prevHandIds = new Set(gameStateRef.current.players[nextPlayerIndex].hand.map((c) => c.id))
         setActiveBotPlayerId(null)
         setCurrentPlayerIndex(nextPlayerIndex)
         setGameState(newState)
@@ -586,6 +588,11 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         setValidGangsters([]); setValidTargets([]); setValidCakes([]); setValidDirections([])
         setPillsApplied(0); setPendingPillTargetIds([]); setValidPillTargets([])
         setSecondActionTaken(false)
+        const newIds = newState.players[nextPlayerIndex].hand.filter((c) => !prevHandIds.has(c.id)).map((c) => c.id)
+        if (newIds.length > 0) {
+          setNewlyDealtCardIds(newIds)
+          setTimeout(() => setNewlyDealtCardIds([]), 1500)
+        }
         // Broadcast bot turn result (with action feedback) to other clients
         const botSyncActions: SyncAction[] = logEntryData.map((le, i) => ({
           playerId: le.playerId,
@@ -621,27 +628,34 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     if (gangsterIdsToPlace.length === 0) return
 
     const timer = setTimeout(() => {
-      const state = gameStateRef.current
-      if (state.currentPhase !== "SEATING_SELECT_GANGSTER") return
-      const availableSeatIds = state.board.filter((p) => p.occupiedBy === null).map((p) => p.id)
-      const decision = decideBotSeating(state, currentSeatingPlayerId, gangsterIdsToPlace, availableSeatIds)
-      if (!decision) return
+      let currentState = gameStateRef.current
+      if (currentState.currentPhase !== "SEATING_SELECT_GANGSTER") return
 
-      const playerName = state.players.find((p) => p.id === currentSeatingPlayerId)?.name ?? currentSeatingPlayerId
-      const newGameState = seatGangsterOnBoard(state, decision.gangsterId, decision.seatId)
-      const newQueue = { ...seatingQueue }
-      newQueue[currentSeatingPlayerId] = (newQueue[currentSeatingPlayerId] ?? []).filter((id) => id !== decision.gangsterId)
-      setSeatingQueue(newQueue); setSeatingSelectedGangsterId(null); setTargetPositionId(null); setValidTargets([])
+      // Place ALL remaining gangsters for this bot player in one pass to avoid
+      // the dep-unchanged re-fire bug when the same bot player has multiple gangsters
+      const currentQueue = { ...seatingQueue }
+      let remaining = [...(currentQueue[currentSeatingPlayerId] ?? [])]
 
-      const allDone = Object.values(newQueue).every((q) => q.length === 0)
+      while (remaining.length > 0) {
+        const availableSeatIds = currentState.board.filter((p) => p.occupiedBy === null).map((p) => p.id)
+        const decision = decideBotSeating(currentState, currentSeatingPlayerId, remaining, availableSeatIds)
+        if (!decision) break
+        currentState = seatGangsterOnBoard(currentState, decision.gangsterId, decision.seatId)
+        remaining = remaining.filter((id) => id !== decision.gangsterId)
+      }
+      currentQueue[currentSeatingPlayerId] = remaining
+
+      setSeatingQueue(currentQueue); setSeatingSelectedGangsterId(null); setTargetPositionId(null); setValidTargets([])
+
+      const allDone = Object.values(currentQueue).every((q) => q.length === 0)
       if (allDone) {
         if (isInitialSeating) {
-          const finalState = initializeGame(newGameState); finalState.currentPhase = "SELECT_CARD"
+          const finalState = initializeGame(currentState); finalState.currentPhase = "SELECT_CARD"
           setIsInitialSeating(false); setSeatingQueue({}); setSeatingPlayerOrder([]); setCurrentPlayerIndex(0); setGameState(finalState)
         } else {
-          const raidingPlayerIdx = newGameState.players.findIndex((p) => p.id === seatingPlayerOrder[0])
-          const nextIdx = getNextActivePlayerIndex(raidingPlayerIdx, newGameState.players)
-          newGameState.currentPhase = "SELECT_CARD"; setSeatingQueue({}); setSeatingPlayerOrder([]); setCurrentPlayerIndex(nextIdx); setGameState(newGameState)
+          const raidingPlayerIdx = currentState.players.findIndex((p) => p.id === seatingPlayerOrder[0])
+          const nextIdx = getNextActivePlayerIndex(raidingPlayerIdx, currentState.players)
+          currentState.currentPhase = "SELECT_CARD"; setSeatingQueue({}); setSeatingPlayerOrder([]); setCurrentPlayerIndex(nextIdx); setGameState(currentState)
         }
         return
       }
@@ -650,10 +664,10 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       let nextIdx = seatingCurrentIdx
       for (let i = 1; i <= total; i++) {
         const candidate = (seatingCurrentIdx + i) % total
-        if ((newQueue[seatingPlayerOrder[candidate]] ?? []).length > 0) { nextIdx = candidate; break }
+        if ((currentQueue[seatingPlayerOrder[candidate]] ?? []).length > 0) { nextIdx = candidate; break }
       }
-      setSeatingCurrentIdx(nextIdx); newGameState.currentPhase = "SEATING_SELECT_GANGSTER"; setGameState(newGameState)
-      onTurnEnd?.({ gameState: newGameState, currentPlayerIndex: nextIdx, seatingPlayerOrder: seatingPlayerOrder, seatingCurrentIdx: nextIdx, seatingQueue: newQueue, actions: [] })
+      setSeatingCurrentIdx(nextIdx); currentState.currentPhase = "SEATING_SELECT_GANGSTER"; setGameState(currentState)
+      onTurnEnd?.({ gameState: currentState, currentPlayerIndex: nextIdx, seatingPlayerOrder: seatingPlayerOrder, seatingCurrentIdx: nextIdx, seatingQueue: currentQueue, actions: [] })
     }, 400)
 
     return () => clearTimeout(timer)
