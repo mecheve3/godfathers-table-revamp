@@ -77,13 +77,13 @@ function computeActionSeats(action: Action, state: GameState): ActionSummary {
 const CARD_SPRITE: Partial<Record<string, string>> = {
   KNIFE:        '/images/Sprites/knifesprite.png',
   GUN:          '/images/Sprites/gunsprite.png',
-  PASS_CAKE:    '/images/Sprites/passcakesprite.png',
+  PASS_CAKE:    '/images/Sprites/cake.png',
   EXPLODE_CAKE: '/images/Sprites/explosionsprite.png',
   DISPLACEMENT: '/images/Sprites/displacementsprite.png',
 }
 
-/** Shown on a seat when that gangster is eliminated by any means */
-const ELIMINATION_SPRITE = '/images/Sprites/explosionsprite.png'
+/** Shown on a seat when the occupant is eliminated (dedicated elimination sprite) */
+const ELIMINATION_SPRITE = '/images/Sprites/eliminationsprite.png'
 
 /** Per-action visual feedback included in sync payloads so receiving clients can replay animations and logs */
 export interface SyncAction {
@@ -304,11 +304,15 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
             if (act.cardType === "DISPLACEMENT" && seatIds.length >= 2) {
               triggerSeatSprite([seatIds[0]], imagePath, 900)
               setTimeout(() => triggerSeatSprite([seatIds[1]], imagePath, 900), 450)
+            } else if (act.cardType === "KNIFE" || act.cardType === "GUN") {
+              triggerSeatSprite([seatIds[0]], imagePath, 900)
+              if (seatIds.length >= 2) {
+                setTimeout(() => triggerSeatSprite([seatIds[1]], ELIMINATION_SPRITE, 900), 200)
+              }
+            } else if (act.cardType === "PASS_CAKE" || act.cardType === "EXPLODE_CAKE") {
+              triggerSeatSprite([seatIds[0]], imagePath, 900)
             } else {
-              // knife/gun/pass_cake: sprite on attacker/source seat (seatIds[0])
-              const spriteSeats = (act.cardType === "KNIFE" || act.cardType === "GUN" || act.cardType === "PASS_CAKE")
-                ? [seatIds[0]] : seatIds
-              triggerSeatSprite(spriteSeats, imagePath, 900)
+              triggerSeatSprite(seatIds, imagePath, 900)
             }
           }
           if (act.sound) {
@@ -576,19 +580,24 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
               const vol = summary.soundName === "explodecake" ? 0.3 : 0.7
               playSFX(summary.soundName, vol, summary.soundDelay)
             }
-            // Sprite overlays for bot actions (mirror human-turn logic)
+            // Sprite overlays for bot actions — mirrors human-turn logic
             const cardType = playedCards[i]?.cardType
             const spritePath = cardType ? CARD_SPRITE[cardType] : undefined
             if (spritePath && summary.seatIds.length > 0) {
               if (cardType === "DISPLACEMENT" && summary.seatIds.length >= 2) {
                 triggerSeatSprite([summary.seatIds[0]], spritePath, 900)
                 setTimeout(() => triggerSeatSprite([summary.seatIds[1]], spritePath, 900), 450)
+              } else if (cardType === "KNIFE" || cardType === "GUN") {
+                triggerSeatSprite([summary.seatIds[0]], spritePath, 900)
+                if (summary.seatIds.length >= 2) {
+                  setTimeout(() => triggerSeatSprite([summary.seatIds[1]], ELIMINATION_SPRITE, 900), 200)
+                }
+              } else if (cardType === "PASS_CAKE") {
+                triggerSeatSprite([summary.seatIds[0]], spritePath, 900)
+              } else if (cardType === "EXPLODE_CAKE") {
+                triggerSeatSprite([summary.seatIds[0]], spritePath, 900)
               } else {
-                // knife/gun/pass_cake: sprite on attacker/source seat (seatIds[0])
-                const spriteSeats = (cardType === "KNIFE" || cardType === "GUN" || cardType === "PASS_CAKE")
-                  ? [summary.seatIds[0]]
-                  : summary.seatIds
-                triggerSeatSprite(spriteSeats, spritePath, 900)
+                triggerSeatSprite(summary.seatIds, spritePath, 900)
               }
             }
           }
@@ -979,20 +988,25 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       playSFX(feedback.soundName, vol, feedback.soundDelay)
     }
 
-    // Sprite overlays on affected seats
+    // Sprite overlays — action sprite on attacker/source, elimination sprite on victim
     const spritePath = CARD_SPRITE[card.type]
     if (spritePath && feedback.seatIds.length > 0) {
       if (card.type === "DISPLACEMENT" && feedback.seatIds.length >= 2) {
         triggerSeatSprite([feedback.seatIds[0]], spritePath, 900)
         setTimeout(() => triggerSeatSprite([feedback.seatIds[1]], spritePath, 900), 450)
+      } else if (card.type === "KNIFE" || card.type === "GUN") {
+        // Action sprite on attacker; schedule elimination sprite on victim if occupied
+        triggerSeatSprite([feedback.seatIds[0]], spritePath, 900)
+        if (feedback.seatIds.length >= 2 && gameState.board.find((p) => p.id === feedback.seatIds[1])?.occupiedBy != null) {
+          setTimeout(() => triggerSeatSprite([feedback.seatIds[1]], ELIMINATION_SPRITE, 900), 200)
+        }
+      } else if (card.type === "PASS_CAKE") {
+        triggerSeatSprite([feedback.seatIds[0]], spritePath, 900)
+      } else if (card.type === "EXPLODE_CAKE") {
+        // Explosion sprite on center cake seat only; blast radius is covered by seat animation
+        triggerSeatSprite([feedback.seatIds[0]], spritePath, 900)
       } else {
-        // knife/gun: sprite on attacker seat (seatIds[0])
-        // pass_cake: sprite on source seat (seatIds[0])
-        // explode_cake / sleeping_pills / order_cake: all affected seats
-        const spriteSeats = (card.type === "KNIFE" || card.type === "GUN" || card.type === "PASS_CAKE")
-          ? [feedback.seatIds[0]]
-          : feedback.seatIds
-        triggerSeatSprite(spriteSeats, spritePath, 900)
+        triggerSeatSprite(feedback.seatIds, spritePath, 900)
       }
     }
 
@@ -1000,15 +1014,13 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     try { newGameState = performAction(newGameState, action) }
     catch (err) { return }
 
-    // Elimination sprite — only for card types that can actually eliminate a gangster.
-    // DISPLACEMENT moves a gangster (source seat empties) but is NOT an elimination.
-    const canEliminate = card.type === "KNIFE" || card.type === "GUN" || card.type === "EXPLODE_CAKE" || card.type === "SLEEPING_PILLS"
-    if (canEliminate) {
+    // Elimination sprite for EXPLODE_CAKE and SLEEPING_PILLS (overdose) kills
+    if (card.type === "EXPLODE_CAKE" || card.type === "SLEEPING_PILLS") {
       const eliminatedSeats = preActionState.board
         .filter((pos) => pos.occupiedBy !== null && newGameState.board.find((p) => p.id === pos.id)?.occupiedBy === null)
         .map((pos) => pos.id)
       if (eliminatedSeats.length > 0) {
-        setTimeout(() => triggerSeatSprite(eliminatedSeats, ELIMINATION_SPRITE, 900), 150)
+        setTimeout(() => triggerSeatSprite(eliminatedSeats, ELIMINATION_SPRITE, 900), 200)
       }
     }
 
@@ -1114,11 +1126,17 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       }
       return
     }
+    // Only advance to the next player once the current player's queue is fully empty.
+    // Advancing after every single gangster was causing CPU players to auto-seat
+    // immediately after the human placed their first gangster.
     const total = seatingPlayerOrder.length
     let nextIdx = seatingCurrentIdx
-    for (let i = 1; i <= total; i++) {
-      const candidate = (seatingCurrentIdx + i) % total
-      if ((newQueue[seatingPlayerOrder[candidate]] ?? []).length > 0) { nextIdx = candidate; break }
+    const currentPlayerDone = (newQueue[currentSeatingPlayerId] ?? []).length === 0
+    if (currentPlayerDone) {
+      for (let i = 1; i <= total; i++) {
+        const candidate = (seatingCurrentIdx + i) % total
+        if ((newQueue[seatingPlayerOrder[candidate]] ?? []).length > 0) { nextIdx = candidate; break }
+      }
     }
     setSeatingCurrentIdx(nextIdx); newGameState.currentPhase = "SEATING_SELECT_GANGSTER"; setGameState(newGameState)
     onTurnEnd?.({ gameState: newGameState, currentPlayerIndex: nextIdx, seatingPlayerOrder: seatingPlayerOrder, seatingCurrentIdx: nextIdx, seatingQueue: newQueue, actions: [] })
