@@ -405,14 +405,16 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
           if (cakePos) {
             const blastSeats = [cakePos.id, cakePos.leftId, cakePos.rightId].filter((s): s is number => s != null)
             triggerSeatAnimation(blastSeats, "seat-anim-danger", 2500)
-            triggerSeatSprite(blastSeats, CARD_SPRITE["EXPLODE_CAKE"]!, 900)
-            // Elimination sprite for any gangster removed by this explosion
+            // Sprite only on the center cake seat — blast radius seats are covered by seat animation.
+            // Keeping center-only prevents the sprite from overwriting sprites from the previous turn.
+            triggerSeatSprite([cakePos.id], CARD_SPRITE["EXPLODE_CAKE"]!, 900)
+            // Elimination sprite for each gangster removed by this explosion
             const eliminatedByExplosion = blastSeats.filter(
               (id) => gameState.board.find((p) => p.id === id)?.occupiedBy !== null &&
                        stateAfterExplosions.board.find((p) => p.id === id)?.occupiedBy === null
             )
             if (eliminatedByExplosion.length > 0) {
-              setTimeout(() => triggerSeatSprite(eliminatedByExplosion, ELIMINATION_SPRITE, 900), 300)
+              setTimeout(() => triggerSeatSprite(eliminatedByExplosion, ELIMINATION_SPRITE, 900), 200)
             }
           }
         }
@@ -998,12 +1000,16 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     try { newGameState = performAction(newGameState, action) }
     catch (err) { return }
 
-    // Elimination sprite — blink on any seat that was occupied before but is now vacated
-    const eliminatedSeats = preActionState.board
-      .filter((pos) => pos.occupiedBy !== null && newGameState.board.find((p) => p.id === pos.id)?.occupiedBy === null)
-      .map((pos) => pos.id)
-    if (eliminatedSeats.length > 0) {
-      setTimeout(() => triggerSeatSprite(eliminatedSeats, ELIMINATION_SPRITE, 900), 300)
+    // Elimination sprite — only for card types that can actually eliminate a gangster.
+    // DISPLACEMENT moves a gangster (source seat empties) but is NOT an elimination.
+    const canEliminate = card.type === "KNIFE" || card.type === "GUN" || card.type === "EXPLODE_CAKE" || card.type === "SLEEPING_PILLS"
+    if (canEliminate) {
+      const eliminatedSeats = preActionState.board
+        .filter((pos) => pos.occupiedBy !== null && newGameState.board.find((p) => p.id === pos.id)?.occupiedBy === null)
+        .map((pos) => pos.id)
+      if (eliminatedSeats.length > 0) {
+        setTimeout(() => triggerSeatSprite(eliminatedSeats, ELIMINATION_SPRITE, 900), 150)
+      }
     }
 
     const actionLogEntry: Omit<LogEntry, "id" | "highlighted"> = {
