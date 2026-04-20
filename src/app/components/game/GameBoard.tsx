@@ -201,6 +201,10 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   const [logEntries, setLogEntries] = useState<LogEntry[]>([])
   const [activeBotPlayerId, setActiveBotPlayerId] = useState<string | null>(null)
   const [centerCard, setCenterCard] = useState<{ cardType: string; playerId: string } | null>(null)
+  // Derived: total gangsters still waiting to be seated across all players.
+  // Used as a dep for the bot-seating useEffect so it retriggers when the same
+  // player's turn comes back around (seatingCurrentIdx unchanged but queue shrinks).
+  const seatingTotalRemaining = Object.values(seatingQueue).reduce((sum, arr) => sum + arr.length, 0)
   const [newlyDealtCardIds, setNewlyDealtCardIds] = useState<string[]>([])
 
   const addLogEntry = (data: Omit<LogEntry, "id" | "highlighted">) => {
@@ -671,19 +675,16 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       let currentState = gameStateRef.current
       if (currentState.currentPhase !== "SEATING_SELECT_GANGSTER") return
 
-      // Place ALL remaining gangsters for this bot player in one pass to avoid
-      // the dep-unchanged re-fire bug when the same bot player has multiple gangsters
+      // Round-robin: place exactly ONE gangster this turn
       const currentQueue = { ...seatingQueue }
-      let remaining = [...(currentQueue[currentSeatingPlayerId] ?? [])]
+      const remaining = [...(currentQueue[currentSeatingPlayerId] ?? [])]
+      if (remaining.length === 0) return
 
-      while (remaining.length > 0) {
-        const availableSeatIds = currentState.board.filter((p) => p.occupiedBy === null).map((p) => p.id)
-        const decision = decideBotSeating(currentState, currentSeatingPlayerId, remaining, availableSeatIds)
-        if (!decision) break
-        currentState = seatGangsterOnBoard(currentState, decision.gangsterId, decision.seatId)
-        remaining = remaining.filter((id) => id !== decision.gangsterId)
-      }
-      currentQueue[currentSeatingPlayerId] = remaining
+      const availableSeatIds = currentState.board.filter((p) => p.occupiedBy === null).map((p) => p.id)
+      const decision = decideBotSeating(currentState, currentSeatingPlayerId, remaining, availableSeatIds)
+      if (!decision) return
+      currentState = seatGangsterOnBoard(currentState, decision.gangsterId, decision.seatId)
+      currentQueue[currentSeatingPlayerId] = remaining.filter((id) => id !== decision.gangsterId)
 
       setSeatingQueue(currentQueue); setSeatingSelectedGangsterId(null); setTargetPositionId(null); setValidTargets([])
 
@@ -700,18 +701,21 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         return
       }
 
+      // Round-robin advance: move to next player who still has gangsters
       const total = seatingPlayerOrder.length
-      let nextIdx = seatingCurrentIdx
-      for (let i = 1; i <= total; i++) {
-        const candidate = (seatingCurrentIdx + i) % total
-        if ((currentQueue[seatingPlayerOrder[candidate]] ?? []).length > 0) { nextIdx = candidate; break }
+      let nextIdx = (seatingCurrentIdx + 1) % total
+      for (let skip = 0; skip < total; skip++) {
+        if ((currentQueue[seatingPlayerOrder[nextIdx]] ?? []).length > 0) break
+        nextIdx = (nextIdx + 1) % total
       }
       setSeatingCurrentIdx(nextIdx); currentState.currentPhase = "SEATING_SELECT_GANGSTER"; setGameState(currentState)
       onTurnEnd?.({ gameState: currentState, currentPlayerIndex: nextIdx, seatingPlayerOrder: seatingPlayerOrder, seatingCurrentIdx: nextIdx, seatingQueue: currentQueue, actions: [] })
     }, 400)
 
     return () => clearTimeout(timer)
-  }, [gameState.currentPhase, seatingCurrentIdx, gameMode]) // eslint-disable-line react-hooks/exhaustive-deps
+  // seatingTotalRemaining ensures the effect retriggers when the same bot's turn
+  // comes back around (seatingCurrentIdx unchanged but its queue shrunk by 1).
+  }, [gameState.currentPhase, seatingCurrentIdx, seatingTotalRemaining, gameMode]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSelectDiscardCard = () => {
     if (gameState.currentPhase !== "SELECT_CARD" || secondActionTaken) return
@@ -1126,17 +1130,12 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       }
       return
     }
-    // Only advance to the next player once the current player's queue is fully empty.
-    // Advancing after every single gangster was causing CPU players to auto-seat
-    // immediately after the human placed their first gangster.
+    // Round-robin: always advance to next player after placing one gangster
     const total = seatingPlayerOrder.length
-    let nextIdx = seatingCurrentIdx
-    const currentPlayerDone = (newQueue[currentSeatingPlayerId] ?? []).length === 0
-    if (currentPlayerDone) {
-      for (let i = 1; i <= total; i++) {
-        const candidate = (seatingCurrentIdx + i) % total
-        if ((newQueue[seatingPlayerOrder[candidate]] ?? []).length > 0) { nextIdx = candidate; break }
-      }
+    let nextIdx = (seatingCurrentIdx + 1) % total
+    for (let skip = 0; skip < total; skip++) {
+      if ((newQueue[seatingPlayerOrder[nextIdx]] ?? []).length > 0) break
+      nextIdx = (nextIdx + 1) % total
     }
     setSeatingCurrentIdx(nextIdx); newGameState.currentPhase = "SEATING_SELECT_GANGSTER"; setGameState(newGameState)
     onTurnEnd?.({ gameState: newGameState, currentPlayerIndex: nextIdx, seatingPlayerOrder: seatingPlayerOrder, seatingCurrentIdx: nextIdx, seatingQueue: newQueue, actions: [] })
