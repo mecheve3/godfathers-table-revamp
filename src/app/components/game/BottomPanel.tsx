@@ -84,7 +84,8 @@ export default function BottomPanel({
             disabled={
               isBotTurn ||
               (gamePhase !== "SELECT_CARD" && gamePhase !== "SELECT_DISCARD" && gamePhase !== "SECOND_DISPLACEMENT") ||
-              ["SEATING_SELECT_GANGSTER", "SEATING_SELECT_SEAT", "SEATING_CONFIRM"].includes(gamePhase)
+              ["SEATING_SELECT_GANGSTER", "SEATING_SELECT_SEAT", "SEATING_CONFIRM"].includes(gamePhase) ||
+              handPlayer.gangsters.every((g) => g.position === null)
             }
             isDiscardMode={gamePhase === "SELECT_DISCARD"}
             gameState={gameState}

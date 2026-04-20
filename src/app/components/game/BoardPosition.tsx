@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import type { Position, GameState, GangsterType } from "../../features/game/types"
 
 interface BoardPositionProps {
@@ -12,6 +12,11 @@ interface BoardPositionProps {
   spriteOverlay?: string
   /** Called with a specific cake ID when a cake on this seat is clicked — enables multi-cake selection */
   onCakeClick?: (cakeId: string) => void
+  spriteLarge?: boolean
+  draggable?: boolean
+  onDragStart?: () => void
+  onDragOver?: (e: React.DragEvent<HTMLDivElement>) => void
+  onDrop?: () => void
 }
 
 const positionMap: Record<number, { x: number; y: number }> = {
@@ -78,7 +83,7 @@ const getGangsterTypeName = (type: GangsterType) => {
 const getGangsterImage = (playerId: string, type: GangsterType) =>
   `/images/players/${getTeam(playerId)}/${getGangsterTypeName(type)}.png`
 
-export default function BoardPosition({ position, gameState, selected, highlighted, onClick, animClass, spriteOverlay, onCakeClick }: BoardPositionProps) {
+export default function BoardPosition({ position, gameState, selected, highlighted, onClick, animClass, spriteOverlay, spriteLarge, onCakeClick, draggable, onDragStart, onDragOver, onDrop }: BoardPositionProps) {
   const [cakes, setCakes] = useState<typeof gameState.cakes>([])
   const style = getPositionStyle(position.id)
 
@@ -112,6 +117,20 @@ export default function BoardPosition({ position, gameState, selected, highlight
           ${occupiedBy ? gangsterColor : "bg-zinc-800/80 hover:bg-zinc-700/90"}`}
         style={style}
         onClick={onClick}
+        draggable={draggable}
+        onDragStart={onDragStart ? (e) => {
+          e.dataTransfer.effectAllowed = "move"
+          // Clone the seat circle into an offscreen element so the drag image is fully opaque
+          const el = e.currentTarget
+          const clone = el.cloneNode(true) as HTMLElement
+          clone.style.cssText = `position:fixed;top:-9999px;left:-9999px;width:${el.offsetWidth}px;height:${el.offsetHeight}px;opacity:1;border-radius:50%;overflow:hidden;`
+          document.body.appendChild(clone)
+          e.dataTransfer.setDragImage(clone, el.offsetWidth / 2, el.offsetHeight / 2)
+          requestAnimationFrame(() => document.body.removeChild(clone))
+          onDragStart()
+        } : undefined}
+        onDragOver={onDragOver}
+        onDrop={onDrop ? (e) => { e.preventDefault(); onDrop() } : undefined}
       >
         {gangsterDetails && (
           <img
@@ -131,7 +150,7 @@ export default function BoardPosition({ position, gameState, selected, highlight
           so the scale animation is never clipped. Same positional anchor as the seat. */}
       {spriteOverlay && (
         <div
-          className="absolute w-20 h-20 md:w-24 md:h-24 pointer-events-none flex items-center justify-center"
+          className={`absolute pointer-events-none flex items-center justify-center ${spriteLarge ? "w-32 h-32 md:w-36 md:h-36" : "w-20 h-20 md:w-24 md:h-24"}`}
           style={{ ...style, zIndex: 30 }}
         >
           <img
