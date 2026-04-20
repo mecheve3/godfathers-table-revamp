@@ -4,10 +4,12 @@ import { toast } from 'sonner'
 import { useMatch } from '../features/match/MatchContext'
 import GameBoard, { type GameSyncPayload } from '../components/game/GameBoard'
 import { useRoomSocket } from '../features/multiplayer/useRoomSocket'
+import { useLang } from '../context/LanguageContext'
 
 export default function Game() {
   const navigate = useNavigate()
   const { config, clearConfig } = useMatch()
+  const { t } = useLang()
 
   const slots = config?.slots ?? []
   const maxPlayers = (config?.settings?.maxPlayers ?? (slots.length > 0 ? slots.length : 3)) as 3 | 4 | 5 | 6
@@ -37,7 +39,7 @@ export default function Game() {
   }, [])
 
   const handleGameAbandoned = useCallback((playerName: string, reason: string) => {
-    toast.error(`${playerName} ${reason === 'restart' ? 'restarted' : 'left'} the game`)
+    toast.error(t(reason === 'restart' ? 'game.abandoned.restart' : 'game.abandoned.left', { name: playerName }))
     clearConfig()
     navigate('/menu')
   }, [clearConfig, navigate])

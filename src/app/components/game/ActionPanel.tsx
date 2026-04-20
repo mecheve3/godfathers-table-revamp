@@ -1,6 +1,7 @@
 import type { Player, Gangster, ActionType, GameState, Card, GamePhase, CakeBomb, LogEntry } from "../../features/game/types"
 import PlayerDashboard from "./PlayerDashboard"
 import GameLog from "./GameLog"
+import { useLang } from "../../context/LanguageContext"
 
 interface ActionPanelProps {
   currentPlayer: Player
@@ -63,6 +64,7 @@ export default function ActionPanel({
   onSeatingGangsterSelect,
   logEntries = [],
 }: ActionPanelProps) {
+  const { t } = useLang()
   const playerColor = getPlayerColor(currentPlayer.id)
   const currentPlayerIndex = gameState.players.findIndex((p) => p.id === currentPlayer.id)
 
@@ -88,14 +90,14 @@ export default function ActionPanel({
 
       {/* Bank — always pinned, never scrolls away */}
       <div className="flex-shrink-0 px-4 py-2 border-t border-zinc-700 flex justify-between items-center">
-        <span className="font-semibold text-[#F5AC0E] text-sm">Bank</span>
+        <span className="font-semibold text-[#F5AC0E] text-sm">{t("panel.bank")}</span>
         <span className="text-[#F5AC0E] font-bold">${gameState.bankMoney.toLocaleString()}</span>
       </div>
 
       {/* Game log — fixed height at the bottom */}
       <div className="flex-shrink-0 border-t border-zinc-700 flex flex-col overflow-hidden" style={{ height: "32%" }}>
         <div className="flex-shrink-0 px-3 py-1 flex items-center gap-1.5">
-          <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">Game Log</span>
+          <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">{t("panel.log")}</span>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto game-log-scroll px-1 pb-2">
           <GameLog entries={logEntries} currentRound={gameState.turn} />

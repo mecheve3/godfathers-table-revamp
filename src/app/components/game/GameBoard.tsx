@@ -18,6 +18,7 @@ import ActionPanel from "./ActionPanel"
 import BoardPosition from "./BoardPosition"
 import TopPanel from "./TopPanel"
 import BottomPanel from "./BottomPanel"
+import { useLang } from "../../context/LanguageContext"
 
 interface ActionSummary {
   seatIds: number[]
@@ -1281,11 +1282,12 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     return () => { document.body.style.overflow = prev }
   }, [])
 
+  const { t } = useLang()
   const PLAYER_COLORS: Record<string, string> = {
     player1: '#ef4444', player2: '#3b82f6', player3: '#facc15',
     player4: '#22c55e', player5: '#f97316', player6: '#a855f7',
   }
-  const RANK_LABELS = ['1st', '2nd', '3rd', '4th', '5th', '6th']
+  const RANK_LABELS = [t('rank.1'), t('rank.2'), t('rank.3'), t('rank.4'), t('rank.5'), t('rank.6')]
 
   return (
     <div className="h-screen overflow-hidden flex flex-col bg-gradient-to-b from-[#2B1710] to-[#3D2314]">
@@ -1307,10 +1309,10 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
             {/* Title */}
             <div className="text-center">
               <p className="text-xs uppercase tracking-[0.4em] font-serif mb-1" style={{ color: '#9b1c1c' }}>
-                The Family Has Spoken
+                {t('results.subtitle')}
               </p>
               <h2 className="text-3xl font-serif uppercase tracking-widest" style={{ color: '#C9A84C' }}>
-                Final Results
+                {t('results.title')}
               </h2>
             </div>
 
@@ -1343,7 +1345,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                     </span>
                     {standing.aliveGangsters !== undefined && standing.aliveGangsters > 0 && (
                       <span className="text-xs font-serif" style={{ color: '#6b4c2a' }}>
-                        {standing.aliveGangsters} alive
+                        {t('results.alive', { count: String(standing.aliveGangsters) })}
                       </span>
                     )}
                     <span
@@ -1372,7 +1374,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                 onMouseEnter={(e) => { e.currentTarget.style.background = '#5a1f1f' }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = '#3f1515' }}
               >
-                New Game
+                {t('results.new_game')}
               </button>
               <button
                 onClick={() => {
@@ -1387,7 +1389,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                 onMouseEnter={(e) => { e.currentTarget.style.background = '#22382a' }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = '#1a2a1a' }}
               >
-                Restart
+                {t('results.restart')}
               </button>
             </div>
           </div>
@@ -1412,18 +1414,18 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
           >
             <div className="text-center">
               <p className="text-xs uppercase tracking-[0.4em] font-serif mb-1" style={{ color: '#9b1c1c' }}>
-                {confirmAction === 'restart' ? 'Hold Your Horses' : 'Walking Away?'}
+                {confirmAction === 'restart' ? t('confirm.restart.sub') : t('confirm.leave.sub')}
               </p>
               <h2 className="text-2xl font-serif uppercase tracking-widest" style={{ color: '#C9A84C' }}>
-                {confirmAction === 'restart' ? 'Restart Game?' : 'Leave Game?'}
+                {confirmAction === 'restart' ? t('confirm.restart.title') : t('confirm.leave.title')}
               </h2>
             </div>
             <p className="text-sm text-center leading-relaxed" style={{ color: '#a07850' }}>
               {gameMode === 'multiplayer'
-                ? 'This will end the game for all players and redirect everyone to the menu.'
+                ? t('confirm.mp.msg')
                 : confirmAction === 'restart'
-                  ? 'All progress will be lost. The family will have to start over.'
-                  : 'You sure you want to leave the table?'
+                  ? t('confirm.restart.msg')
+                  : t('confirm.leave.msg')
               }
             </p>
             <div className="flex gap-3 pt-1">
@@ -1440,7 +1442,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                 onMouseEnter={(e) => { e.currentTarget.style.background = '#5a1f1f' }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = '#3f1515' }}
               >
-                {confirmAction === 'restart' ? 'Restart' : 'Leave'}
+                {confirmAction === 'restart' ? t('confirm.restart.btn') : t('confirm.leave.btn')}
               </button>
               <button
                 onClick={() => setConfirmAction(null)}
@@ -1449,7 +1451,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                 onMouseEnter={(e) => { e.currentTarget.style.background = '#243a24' }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = '#1a2a1a' }}
               >
-                Cancel
+                {t('confirm.cancel')}
               </button>
             </div>
           </div>

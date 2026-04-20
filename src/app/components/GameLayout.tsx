@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Volume2, VolumeX } from 'lucide-react'
 import { useAudio } from '../features/game/AudioContext'
+import { useLang } from '../context/LanguageContext'
 
 /**
  * Full-screen dark gradient wrapper used by every game screen.
@@ -9,6 +10,7 @@ import { useAudio } from '../features/game/AudioContext'
  */
 export function GameLayout({ children }: { children: ReactNode }) {
   const { musicEnabled, toggleMusic } = useAudio()
+  const { lang, setLang, t } = useLang()
 
   return (
     <div
@@ -20,10 +22,25 @@ export function GameLayout({ children }: { children: ReactNode }) {
     >
       {children}
 
+      {/* Language toggle — fixed bottom-right, above music */}
+      <button
+        onClick={() => setLang(lang === 'en' ? 'es' : 'en')}
+        aria-label={t('layout.lang_toggle')}
+        className="fixed bottom-16 right-4 z-50 w-10 h-10 rounded-full flex items-center justify-center transition-colors text-sm font-bold"
+        style={{
+          background: 'rgba(30,10,5,0.85)',
+          border: '1px solid #C9A84C44',
+          backdropFilter: 'blur(4px)',
+          color: '#C9A84C',
+        }}
+      >
+        {lang === 'en' ? '🇪🇸' : '🇺🇸'}
+      </button>
+
       {/* Music toggle — fixed bottom-right over all setup/lobby screens */}
       <button
         onClick={toggleMusic}
-        aria-label={musicEnabled ? 'Mute music' : 'Unmute music'}
+        aria-label={musicEnabled ? t('layout.mute') : t('layout.unmute')}
         className="fixed bottom-4 right-4 z-50 w-10 h-10 rounded-full flex items-center justify-center transition-colors"
         style={{
           background: musicEnabled ? 'rgba(63,21,21,0.85)' : 'rgba(30,10,5,0.85)',

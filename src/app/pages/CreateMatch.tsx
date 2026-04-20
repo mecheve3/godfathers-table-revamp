@@ -9,6 +9,7 @@ import { MatchOptionCard } from '../components/MatchOptionCard'
 import { GameLayout, ScreenTitle } from '../components/GameLayout'
 import { useMatch } from '../features/match/MatchContext'
 import { createRoom } from '../features/multiplayer/api'
+import { useLang } from '../context/LanguageContext'
 
 type Step = 'players' | 'seating' | 'name'
 
@@ -21,6 +22,7 @@ export default function CreateMatch() {
 
   const isQuickMatch = config?.mode === 'quick'
 
+  const { t } = useLang()
   const [step, setStep] = useState<Step>('players')
   const [maxPlayers, setMaxPlayers] = useState<number | null>(null)
   const [seating, setSeating] = useState<'automatic' | 'manual' | null>(null)
@@ -85,7 +87,7 @@ export default function CreateMatch() {
     else handleCreateLobby()
   }
 
-  const title = isQuickMatch ? 'Quick Match' : 'Create Match'
+  const title = isQuickMatch ? t('setup.title.quick') : t('setup.title.create')
 
   return (
     <PageTransition>
@@ -103,14 +105,14 @@ export default function CreateMatch() {
                 className="flex flex-col items-center gap-10"
               >
                 <p className="text-xs uppercase tracking-[0.35em] font-serif" style={{ color: '#9b1c1c' }}>
-                  Number of Players
+                  {t('setup.players')}
                 </p>
                 <div className="flex gap-4">
                   {PLAYER_COUNTS.map((count) => (
                     <MatchOptionCard
                       key={count}
                       title={String(count)}
-                      subtitle="Players"
+                      subtitle={t('setup.players.label')}
                       selected={maxPlayers === count}
                       onClick={() => setMaxPlayers(count)}
                       className="h-40 w-40"
@@ -118,7 +120,7 @@ export default function CreateMatch() {
                   ))}
                 </div>
                 <Button onClick={() => setStep('seating')} disabled={!maxPlayers} className="w-64">
-                  Next
+                  {t('setup.next')}
                 </Button>
               </motion.div>
             )}
@@ -132,26 +134,26 @@ export default function CreateMatch() {
                 className="flex flex-col items-center gap-10"
               >
                 <p className="text-xs uppercase tracking-[0.35em] font-serif" style={{ color: '#9b1c1c' }}>
-                  Seating Arrangement
+                  {t('setup.seating')}
                 </p>
                 <div className="flex gap-6">
                   <MatchOptionCard
-                    title="Preset"
-                    subtitle="Fixed positions"
+                    title={t('setup.seating.preset')}
+                    subtitle={t('setup.seating.preset.sub')}
                     selected={seating === 'automatic'}
                     onClick={() => setSeating('automatic')}
                     className="h-44 w-56"
                   />
                   <MatchOptionCard
-                    title="Manual"
-                    subtitle="Choose your seat"
+                    title={t('setup.seating.manual')}
+                    subtitle={t('setup.seating.manual.sub')}
                     selected={seating === 'manual'}
                     onClick={() => setSeating('manual')}
                     className="h-44 w-56"
                   />
                 </div>
                 <Button onClick={handleSeatingConfirm} disabled={!seating} className="w-64">
-                  Next
+                  {t('setup.next')}
                 </Button>
               </motion.div>
             )}
@@ -165,7 +167,7 @@ export default function CreateMatch() {
                 className="flex flex-col items-center gap-8 w-full max-w-xs"
               >
                 <p className="text-xs uppercase tracking-[0.35em] font-serif" style={{ color: '#9b1c1c' }}>
-                  Your Name
+                  {t('setup.name')}
                 </p>
                 <input
                   ref={nameInputRef}
@@ -173,12 +175,12 @@ export default function CreateMatch() {
                   value={playerName}
                   onChange={(e) => setPlayerName(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') handleNameSubmit() }}
-                  placeholder="Red Team"
+                  placeholder={t('setup.name.placeholder')}
                   maxLength={20}
                   className="w-full bg-zinc-800 border border-zinc-600 rounded-md px-4 py-2.5 text-white placeholder-zinc-500 focus:outline-none focus:border-[#F5AC0E] text-center text-lg"
                 />
                 <Button onClick={handleNameSubmit} isLoading={isLoading} className="w-full">
-                  {isQuickMatch ? 'Start Game' : 'Create Lobby'}
+                  {isQuickMatch ? t('setup.start') : t('setup.create_lobby')}
                 </Button>
               </motion.div>
             )}

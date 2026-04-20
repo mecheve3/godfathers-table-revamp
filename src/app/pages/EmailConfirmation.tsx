@@ -4,9 +4,11 @@ import { MailCheck } from 'lucide-react'
 import { PageTransition } from '../components/PageTransition'
 import { Button } from '../components/Button'
 import { GameLayout, Divider } from '../components/GameLayout'
+import { useLang } from '../context/LanguageContext'
 
 export default function EmailConfirmation() {
   const navigate = useNavigate()
+  const { t } = useLang()
 
   return (
     <PageTransition>
@@ -24,7 +26,7 @@ export default function EmailConfirmation() {
               className="text-3xl font-black uppercase tracking-widest font-serif"
               style={{ color: '#C9A84C', textShadow: '0 0 20px rgba(201,168,76,0.3)' }}
             >
-              Check Your Email
+              {t('email.title')}
             </h2>
 
             <Divider />
@@ -33,12 +35,12 @@ export default function EmailConfirmation() {
               className="text-sm font-serif tracking-wide max-w-xs"
               style={{ color: '#9b7060' }}
             >
-              A confirmation link has been sent to your address. Click it to activate your account.
+              {t('email.message')}
             </p>
           </motion.div>
 
           <Button onClick={() => navigate('/login')} className="w-full max-w-xs mt-4">
-            Back to Login
+            {t('email.back')}
           </Button>
         </div>
       </GameLayout>

@@ -10,6 +10,7 @@ import { GameLayout, ScreenTitle } from '../components/GameLayout'
 import { useMatch } from '../features/match/MatchContext'
 import { useRoomSocket } from '../features/multiplayer/useRoomSocket'
 import type { RoomState, RoomPlayer } from '../features/multiplayer/types'
+import { useLang } from '../context/LanguageContext'
 
 const PLAYER_COLOR: Record<number, string> = {
   0: '#ef4444',  // Red  — matches player1 in-game
@@ -22,6 +23,7 @@ const PLAYER_COLOR: Record<number, string> = {
 
 function PlayerRow({ player, index }: { player: RoomPlayer; index: number }) {
   const color = PLAYER_COLOR[index] ?? '#c9a84c'
+  const { t } = useLang()
   return (
     <motion.div
       key={player.id}
@@ -42,25 +44,26 @@ function PlayerRow({ player, index }: { player: RoomPlayer; index: number }) {
       </span>
       {player.isHost && (
         <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded" style={{ background: '#3f1515', color: '#c9a84c' }}>
-          host
+          {t('lobby.host')}
         </span>
       )}
       {player.type === 'CPU' && (
-        <span className="text-xs uppercase tracking-wider" style={{ color: '#6b4c2a' }}>CPU</span>
+        <span className="text-xs uppercase tracking-wider" style={{ color: '#6b4c2a' }}>{t('lobby.cpu')}</span>
       )}
       {player.type === 'HUMAN' && !player.isConnected && (
-        <span className="text-xs uppercase tracking-wider" style={{ color: '#6b4c2a' }}>away</span>
+        <span className="text-xs uppercase tracking-wider" style={{ color: '#6b4c2a' }}>{t('lobby.away')}</span>
       )}
     </motion.div>
   )
 }
 
 function EmptySlot() {
+  const { t } = useLang()
   return (
     <div className="flex items-center gap-3 py-2 border-b last:border-b-0" style={{ borderColor: '#2a0808' }}>
       <Clock className="w-4 h-4 opacity-30" style={{ color: '#4a3020' }} />
       <span className="text-base font-serif italic tracking-wider" style={{ color: '#4a3020' }}>
-        Empty seat
+        {t('lobby.empty')}
       </span>
     </div>
   )
@@ -69,6 +72,7 @@ function EmptySlot() {
 export default function MatchLobby() {
   const navigate = useNavigate()
   const { config, setConfig } = useMatch()
+  const { t } = useLang()
 
   const [room, setRoom] = useState<RoomState | null>(null)
   const [copied, setCopied] = useState(false)
@@ -87,7 +91,7 @@ export default function MatchLobby() {
 
   const handleGameStarted = useCallback((r: RoomState) => {
     setRoom(r)
-    toast.success('Game starting!')
+    toast.success(t('lobby.starting'))
     const slots = r.players.map((p) => ({
       id: p.id,
       name: p.name,
@@ -130,7 +134,7 @@ export default function MatchLobby() {
   const handleCopy = async () => {
     await navigator.clipboard.writeText(roomCode)
     setCopied(true)
-    toast.success('Room code copied!')
+    toast.success(t('lobby.copied'))
     setTimeout(() => setCopied(false), 2000)
   }
 
@@ -151,7 +155,7 @@ export default function MatchLobby() {
   const connectionEl = (
     <div className="flex items-center gap-1.5 text-xs" style={{ color: status === 'open' ? '#4ade80' : '#ef4444' }}>
       {status === 'open' ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-      {status === 'connecting' ? 'Connecting…' : status === 'open' ? 'Connected' : 'Disconnected'}
+      {status === 'connecting' ? t('lobby.connecting') : status === 'open' ? t('lobby.connected') : t('lobby.disconnected')}
     </div>
   )
 
@@ -162,7 +166,7 @@ export default function MatchLobby() {
       <GameLayout>
         <div className="flex flex-col items-center pt-16 pb-32 px-6 gap-8">
           <div className="flex flex-col items-center gap-2">
-            <ScreenTitle>Match Lobby</ScreenTitle>
+            <ScreenTitle>{t('lobby.title')}</ScreenTitle>
             {connectionEl}
           </div>
 
@@ -171,11 +175,11 @@ export default function MatchLobby() {
             onClick={handleCopy}
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.98 }}
-            aria-label="Copy room code"
+            aria-label={t('lobby.copy')}
             className="flex items-center gap-3 group"
           >
             <span className="text-xl font-serif uppercase tracking-widest" style={{ color: '#9b7060' }}>
-              Room Code:
+              {t('lobby.room_code')}
             </span>
             <strong className="text-2xl font-serif uppercase tracking-widest" style={{ color: '#C9A84C' }}>
               {roomCode}
@@ -196,7 +200,7 @@ export default function MatchLobby() {
             }}
           >
             <p className="text-xs uppercase tracking-[0.35em] font-serif mb-2" style={{ color: '#9b1c1c' }}>
-              Players ({(room?.players.length ?? 1)}/{maxPlayers})
+              {t('lobby.players_count', { count: String(room?.players.length ?? 1), max: String(maxPlayers) })}
             </p>
 
             <AnimatePresence>
@@ -217,7 +221,7 @@ export default function MatchLobby() {
               className="text-sm font-serif text-center animate-pulse"
               style={{ color: '#9b7060' }}
             >
-              Waiting for the host to start the game…
+              {t('lobby.waiting_guest')}
             </motion.p>
           )}
 
@@ -228,7 +232,7 @@ export default function MatchLobby() {
               className="text-sm font-serif text-center"
               style={{ color: '#9b7060' }}
             >
-              {`Waiting for players… Start now to fill ${emptyCount} seat${emptyCount > 1 ? 's' : ''} with CPU opponents.`}
+              {t('lobby.waiting_host', { count: String(emptyCount) })}
             </motion.p>
           )}
 
@@ -240,7 +244,7 @@ export default function MatchLobby() {
               disabled={status !== 'open'}
               className="w-64"
             >
-              Start Game
+              {t('lobby.start')}
             </Button>
           )}
         </div>

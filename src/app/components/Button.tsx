@@ -1,5 +1,6 @@
 import { motion } from 'motion/react'
 import type { ButtonHTMLAttributes } from 'react'
+import { useLang } from '../context/LanguageContext'
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'ghost'
@@ -15,6 +16,7 @@ export function Button({
   ...props
 }: ButtonProps) {
   const isDisabled = disabled || isLoading
+  const { t } = useLang()
 
   return (
     <motion.button
@@ -50,7 +52,7 @@ export function Button({
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
           </svg>
-          Loading…
+          {t("btn.loading")}
         </span>
       ) : (
         <span className="px-8 py-4 block">{children}</span>

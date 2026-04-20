@@ -1,5 +1,6 @@
 import { ArrowLeft } from 'lucide-react'
 import { useNavigate } from 'react-router'
+import { useLang } from '../context/LanguageContext'
 
 interface BackButtonProps {
   to?: string
@@ -9,6 +10,7 @@ interface BackButtonProps {
 
 export function BackButton({ to, onClick, className = '' }: BackButtonProps) {
   const navigate = useNavigate()
+  const { t } = useLang()
 
   const handleClick = () => {
     if (onClick) onClick()
@@ -19,7 +21,7 @@ export function BackButton({ to, onClick, className = '' }: BackButtonProps) {
   return (
     <button
       onClick={handleClick}
-      aria-label="Go back"
+      aria-label={t("btn.back_aria")}
       className={`absolute left-12 bottom-12 flex items-center gap-2 transition-opacity duration-200 hover:opacity-60 ${className}`}
       style={{ color: '#C9A84C' }}
     >

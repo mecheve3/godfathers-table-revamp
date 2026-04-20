@@ -7,10 +7,12 @@ import { Button } from '../components/Button'
 import { Input } from '../components/Input'
 import { BackButton } from '../components/BackButton'
 import { GameLayout, ScreenTitle } from '../components/GameLayout'
+import { useLang } from '../context/LanguageContext'
 
 export default function SignUp() {
   const navigate = useNavigate()
   const { login } = useUser()
+  const { t } = useLang()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -20,12 +22,12 @@ export default function SignUp() {
 
   const validate = () => {
     const next = { email: '', password: '', confirm: '' }
-    if (!email) next.email = 'Email is required'
-    else if (!/\S+@\S+\.\S+/.test(email)) next.email = 'Invalid email address'
-    if (!password) next.password = 'Password is required'
-    else if (password.length < 6) next.password = 'Must be at least 6 characters'
-    if (!confirm) next.confirm = 'Please confirm your password'
-    else if (password !== confirm) next.confirm = 'Passwords do not match'
+    if (!email) next.email = t('auth.error.email_required')
+    else if (!/\S+@\S+\.\S+/.test(email)) next.email = t('auth.error.email_invalid2')
+    if (!password) next.password = t('auth.error.password_required')
+    else if (password.length < 6) next.password = t('auth.error.password_min2')
+    if (!confirm) next.confirm = t('auth.error.confirm_required')
+    else if (password !== confirm) next.confirm = t('auth.error.passwords_mismatch')
     setErrors(next)
     return !next.email && !next.password && !next.confirm
   }
@@ -35,7 +37,7 @@ export default function SignUp() {
     setIsLoading(true)
     // TODO: replace with real auth API call
     await new Promise<void>((resolve) => setTimeout(resolve, 1000))
-    toast.success('Account created! Check your email.')
+    toast.success(t('auth.signup.success'))
     login(email)
     setIsLoading(false)
     navigate('/email-confirmation')
@@ -45,12 +47,12 @@ export default function SignUp() {
     <PageTransition>
       <GameLayout>
         <div className="flex flex-col items-center justify-center flex-1 gap-8 py-20 px-6">
-          <ScreenTitle>Sign Up</ScreenTitle>
+          <ScreenTitle>{t('auth.signup.title')}</ScreenTitle>
 
           {[
-            { label: 'Email', key: 'email', type: 'email', value: email, set: setEmail, error: errors.email },
-            { label: 'Password', key: 'password', type: 'password', value: password, set: setPassword, error: errors.password },
-            { label: 'Confirm', key: 'confirm', type: 'password', value: confirm, set: setConfirm, error: errors.confirm },
+            { label: t('auth.login.email'), key: 'email', type: 'email', value: email, set: setEmail, error: errors.email },
+            { label: t('auth.login.password'), key: 'password', type: 'password', value: password, set: setPassword, error: errors.password },
+            { label: t('auth.signup.confirm'), key: 'confirm', type: 'password', value: confirm, set: setConfirm, error: errors.confirm },
           ].map(({ label, key, type, value, set, error }) => (
             <div key={key} className="flex flex-col gap-1.5 w-full max-w-xs">
               <label className="text-xs uppercase tracking-[0.35em] font-serif" style={{ color: '#9b1c1c' }}>
@@ -73,7 +75,7 @@ export default function SignUp() {
             isLoading={isLoading}
             className="w-full max-w-xs mt-2"
           >
-            Sign Up
+            {t('auth.signup.submit')}
           </Button>
         </div>
 

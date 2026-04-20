@@ -7,10 +7,12 @@ import { Button } from '../components/Button'
 import { Input } from '../components/Input'
 import { BackButton } from '../components/BackButton'
 import { GameLayout, ScreenTitle } from '../components/GameLayout'
+import { useLang } from '../context/LanguageContext'
 
 export default function Login() {
   const navigate = useNavigate()
   const { login } = useUser()
+  const { t } = useLang()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -19,10 +21,10 @@ export default function Login() {
 
   const validate = () => {
     const next = { email: '', password: '' }
-    if (!email) next.email = 'Email is required'
-    else if (!/\S+@\S+\.\S+/.test(email)) next.email = 'Invalid email'
-    if (!password) next.password = 'Password is required'
-    else if (password.length < 6) next.password = 'Min 6 characters'
+    if (!email) next.email = t('auth.error.email_required')
+    else if (!/\S+@\S+\.\S+/.test(email)) next.email = t('auth.error.email_invalid')
+    if (!password) next.password = t('auth.error.password_required')
+    else if (password.length < 6) next.password = t('auth.error.password_min')
     setErrors(next)
     return !next.email && !next.password
   }
@@ -32,7 +34,7 @@ export default function Login() {
     setIsLoading(true)
     await new Promise<void>((r) => setTimeout(r, 900))
     login(email)
-    toast.success('Welcome back!')
+    toast.success(t('auth.login.success'))
     setIsLoading(false)
     navigate('/menu')
   }
@@ -41,11 +43,11 @@ export default function Login() {
     <PageTransition>
       <GameLayout>
         <div className="flex flex-col items-center justify-center flex-1 gap-8 py-20 px-6">
-          <ScreenTitle>Login</ScreenTitle>
+          <ScreenTitle>{t('auth.login.title')}</ScreenTitle>
 
           {[
-            { label: 'Email', key: 'email', type: 'email', value: email, set: setEmail, error: errors.email },
-            { label: 'Password', key: 'password', type: 'password', value: password, set: setPassword, error: errors.password },
+            { label: t('auth.login.email'), key: 'email', type: 'email', value: email, set: setEmail, error: errors.email },
+            { label: t('auth.login.password'), key: 'password', type: 'password', value: password, set: setPassword, error: errors.password },
           ].map(({ label, key, type, value, set, error }) => (
             <div key={key} className="flex flex-col gap-1.5 w-full max-w-xs">
               <label className="text-xs uppercase tracking-[0.35em] font-serif" style={{ color: '#9b1c1c' }}>
@@ -63,7 +65,7 @@ export default function Login() {
           ))}
 
           <Button onClick={handleLogin} disabled={!email || !password} isLoading={isLoading} className="w-full max-w-xs mt-2">
-            Login
+            {t('auth.login.submit')}
           </Button>
         </div>
 

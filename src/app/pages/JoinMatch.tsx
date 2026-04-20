@@ -8,16 +8,18 @@ import { BackButton } from '../components/BackButton'
 import { GameLayout, ScreenTitle } from '../components/GameLayout'
 import { useMatch } from '../features/match/MatchContext'
 import { fetchRoom } from '../features/multiplayer/api'
-
-function validateCode(code: string): string {
-  if (!code.trim()) return 'Room code is required'
-  if (code.trim().length < 4) return 'Must be at least 4 characters'
-  return ''
-}
+import { useLang } from '../context/LanguageContext'
 
 export default function JoinMatch() {
   const navigate = useNavigate()
   const { setConfig } = useMatch()
+  const { t } = useLang()
+
+  const validateCode = (code: string): string => {
+    if (!code.trim()) return t('join.error.required')
+    if (code.trim().length < 4) return t('join.error.length')
+    return ''
+  }
 
   const [step, setStep] = useState<'code' | 'name'>('code')
   const [roomCode, setRoomCode] = useState('')
@@ -38,23 +40,23 @@ export default function JoinMatch() {
     try {
       const room = await fetchRoom(roomCode.trim())
       if (room.status !== 'LOBBY') {
-        setError('This game has already started')
+        setError(t('join.error.started'))
         return
       }
       if (room.players.filter((p) => p.type === 'HUMAN').length >= room.maxPlayers) {
-        setError('Room is full')
+        setError(t('join.error.full'))
         return
       }
       setStep('name')
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Room not found')
+      setError(e instanceof Error ? e.message : t('join.error.notfound'))
     } finally {
       setIsLoading(false)
     }
   }
 
   const handleJoin = () => {
-    const finalName = playerName.trim() || 'Guest'
+    const finalName = playerName.trim() || t('join.name.placeholder')
     const playerId = `player-${Date.now()}`
     setConfig({ mode: 'join', roomCode: roomCode.trim().toUpperCase(), playerName: finalName, hostId: playerId })
     toast.success('Joining match…')
@@ -65,25 +67,25 @@ export default function JoinMatch() {
     <PageTransition>
       <GameLayout>
         <div className="flex flex-col items-center justify-center flex-1 gap-8 py-20 px-6">
-          <ScreenTitle>Join Match</ScreenTitle>
+          <ScreenTitle>{t('join.title')}</ScreenTitle>
 
           {step === 'code' && (
             <div className="flex flex-col items-center gap-6 w-full max-w-xs">
               <label className="text-xs uppercase tracking-[0.35em] font-serif" style={{ color: '#9b1c1c' }}>
-                Room Code
+                {t('join.code')}
               </label>
               <Input
                 autoFocus
                 value={roomCode}
                 onChange={(e) => { setRoomCode(e.target.value.toUpperCase()); setError('') }}
-                placeholder="Enter code"
+                placeholder={t('join.code.placeholder')}
                 error={error}
                 maxLength={8}
                 className="w-full text-center"
                 onKeyDown={(e) => e.key === 'Enter' && handleCheckCode()}
               />
               <Button onClick={handleCheckCode} disabled={!roomCode.trim()} isLoading={isLoading} className="w-full">
-                Find Room
+                {t('join.find')}
               </Button>
             </div>
           )}
@@ -91,7 +93,7 @@ export default function JoinMatch() {
           {step === 'name' && (
             <div className="flex flex-col items-center gap-6 w-full max-w-xs">
               <label className="text-xs uppercase tracking-[0.35em] font-serif" style={{ color: '#9b1c1c' }}>
-                Your Name
+                {t('join.name')}
               </label>
               <input
                 ref={nameInputRef}
@@ -99,12 +101,12 @@ export default function JoinMatch() {
                 value={playerName}
                 onChange={(e) => setPlayerName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleJoin() }}
-                placeholder="Guest"
+                placeholder={t('join.name.placeholder')}
                 maxLength={20}
                 className="w-full bg-zinc-800 border border-zinc-600 rounded-md px-4 py-2.5 text-white placeholder-zinc-500 focus:outline-none focus:border-[#F5AC0E] text-center text-lg"
               />
               <Button onClick={handleJoin} className="w-full">
-                Join Lobby
+                {t('join.join')}
               </Button>
             </div>
           )}

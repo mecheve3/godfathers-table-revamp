@@ -2,6 +2,7 @@ import type { Card as CardType } from "../../features/game/types"
 import { cn } from "../ui/utils"
 import { useEffect, useState } from "react"
 import { isCardPlayable } from "../../features/game/game-logic"
+import { useLang } from "../../context/LanguageContext"
 
 interface PlayerHandProps {
   cards: CardType[]
@@ -28,43 +29,19 @@ const getCardImage = (type: string): string => {
   }
 }
 
-const getCardDescription = (type: string): string => {
-  switch (type) {
-    case "KNIFE":
-      return "Slash a gangster immediately to your left or right. If the adjacent seat is occupied by an enemy, they are eliminated and removed from the board. Your gangster must be alive and seated to use this card."
-    case "GUN":
-      return "Shoot the gangster sitting directly across the table from yours. If the opposite seat is occupied, they are eliminated. If the seat is empty, the shot misses — but the card is still spent."
-    case "DISPLACEMENT":
-      return "Move one of your gangsters from their current seat to any unoccupied seat on the board. Can also be used as a second action after your first play — if you have a Displacement card in hand after playing another card, you get the option to move."
-    case "ORDER_CAKE":
-      return "Place a cake bomb on any seat on the board. The bomb is armed this round and will automatically explode at the start of your NEXT turn, eliminating anyone seated to the left, right, and center of the blast. Plan ahead — your own gangsters can be caught in the blast."
-    case "PASS_CAKE":
-      return "Nudge an existing cake bomb one seat to the left or right. Use this to redirect a bomb toward an enemy, or push it away from your own gangsters before it explodes."
-    case "EXPLODE_CAKE":
-      return "Manually trigger a cake bomb right now — no waiting for next round. The explosion hits the center seat and both adjacent seats. Any gangster caught in the blast is eliminated. Great for a surprise strike."
-    case "POLICE_RAID":
-      return "The cops show up and clear the entire board. Every gangster is removed and all players must re-seat their gang from scratch, in turn order starting with you. Powerful for disrupting strong positions. WARNING: this card is permanently removed from the deck once played — it will not be reshuffled."
-    case "SLEEPING_PILLS":
-      return "Drug up to 3 enemy gangsters sitting at bar or drink seats. Sleeping gangsters skip their turn but stay on the board. They wake up at the end of their owner's next turn. Useful for neutralizing threats without eliminating them."
-    default:
-      return "Unknown card."
-  }
-}
-
-const formatCardName = (type: string): string => type.replace(/_/g, " ")
-
 function CardInfoPopup({ card, onClose }: { card: CardType; onClose: () => void }) {
+  const { t } = useLang()
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={onClose}>
       <div
         className="bg-[#2B1710] border-2 border-[#F5AC0E] rounded-lg p-6 max-w-xs w-full mx-4 flex flex-col items-center gap-4"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-[#F5AC0E] font-bold text-lg uppercase tracking-wide">{formatCardName(card.type)}</h2>
+        <h2 className="text-[#F5AC0E] font-bold text-lg uppercase tracking-wide">{t(`card.name.${card.type}`)}</h2>
         <img src={getCardImage(card.type)} alt={card.type} className="w-40 h-56 object-contain rounded-md border border-[#F5AC0E]/40" />
-        <p className="text-white/90 text-sm text-center leading-relaxed">{getCardDescription(card.type)}</p>
+        <p className="text-white/90 text-sm text-center leading-relaxed">{t(`card.desc.${card.type}`)}</p>
         <button onClick={onClose} className="px-5 py-1.5 bg-[#F5AC0E] text-[#2B1710] font-bold rounded-md hover:bg-[#F5AC0E]/80 transition-colors">
-          Close
+          {t("card.info.close")}
         </button>
       </div>
     </div>
@@ -87,6 +64,7 @@ export default function PlayerHand({ cards, onSelectCard, selectedCardId, disabl
   const [playableCards, setPlayableCards] = useState<Record<string, boolean>>({})
   const [infoCardId, setInfoCardId] = useState<string | null>(null)
   const borderColor = getPlayerBorderColor(playerId)
+  const { t } = useLang()
 
   useEffect(() => {
     const status: Record<string, boolean> = {}
@@ -98,7 +76,7 @@ export default function PlayerHand({ cards, onSelectCard, selectedCardId, disabl
 
   return (
     <div className="w-full">
-      {isDiscardMode && <h3 className="font-semibold mb-2 text-[#F5AC0E]">Select a Card to Discard</h3>}
+      {isDiscardMode && <h3 className="font-semibold mb-2 text-[#F5AC0E]">{t("game.discard.header")}</h3>}
       <div className="flex flex-wrap gap-2 justify-center">
         {cards.map((card) => {
           const isSecondDisplacementLocked = gameState.currentPhase === "SECOND_DISPLACEMENT" && card.type !== "DISPLACEMENT"
@@ -112,7 +90,7 @@ export default function PlayerHand({ cards, onSelectCard, selectedCardId, disabl
               <button
                 onClick={() => onSelectCard(card.id)}
                 disabled={disabled || (!isDiscardMode && (!playableCards[card.id] || isSecondDisplacementLocked))}
-                title={!isPlayable && !isDiscardMode ? "No valid targets for this card" : ""}
+                title={!isPlayable && !isDiscardMode ? t("game.no_gangsters") : ""}
                 className={cn(
                   `w-20 h-28 rounded-md border-2 ${borderColor} overflow-hidden transition-all block`,
                   isSelected ? "ring-2 ring-white scale-105" : "",
@@ -122,17 +100,17 @@ export default function PlayerHand({ cards, onSelectCard, selectedCardId, disabl
                 )}
               >
                 {imageSrc ? (
-                  <img src={imageSrc} alt={formatCardName(card.type)} className="w-full h-full object-cover" draggable={false} />
+                  <img src={imageSrc} alt={t(`card.name.${card.type}`)} className="w-full h-full object-cover" draggable={false} />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-zinc-800 text-[#F5AC0E] text-xs font-bold p-1 text-center">
-                    {formatCardName(card.type)}
+                    {t(`card.name.${card.type}`)}
                   </div>
                 )}
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); setInfoCardId(card.id) }}
                 className="absolute bottom-1 right-1 w-5 h-5 rounded-full bg-[#F5AC0E]/90 text-[#2B1710] text-[10px] font-bold flex items-center justify-center hover:bg-[#F5AC0E] transition-colors z-10 leading-none"
-                title="Card info"
+                title={t("card.info")}
               >
                 ?
               </button>

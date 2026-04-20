@@ -5,15 +5,17 @@ import { PageTransition } from '../components/PageTransition'
 import { Button } from '../components/Button'
 import { GameLayout, Divider } from '../components/GameLayout'
 import { FEATURES } from '../features/auth/flags'
-
-const AUTH_BUTTONS = [
-  { label: 'Login', path: '/login', delay: 0.4 },
-  { label: 'Sign Up', path: '/signup', delay: 0.5 },
-  { label: 'Play as Guest', path: '/menu', delay: 0.6 },
-]
+import { useLang } from '../context/LanguageContext'
 
 export default function Landing() {
   const navigate = useNavigate()
+  const { t } = useLang()
+
+  const AUTH_BUTTONS = [
+    { label: t('landing.login'), path: '/login', delay: 0.4 },
+    { label: t('landing.signup'), path: '/signup', delay: 0.5 },
+    { label: t('landing.guest'), path: '/menu', delay: 0.6 },
+  ]
 
   useEffect(() => {
     if (!FEATURES.AUTH_ENABLED) navigate('/menu', { replace: true })
@@ -35,7 +37,7 @@ export default function Landing() {
               className="text-xs uppercase tracking-[0.4em] mb-2 font-light font-serif"
               style={{ color: '#9b1c1c' }}
             >
-              Welcome to
+              {t('landing.welcome')}
             </p>
             <h1
               className="text-6xl font-black uppercase tracking-widest font-serif"
@@ -44,7 +46,7 @@ export default function Landing() {
                 textShadow: '0 0 30px rgba(201,168,76,0.4), 0 2px 4px rgba(0,0,0,1)',
               }}
             >
-              Godfather's Table
+              {t('landing.title')}
             </h1>
             <Divider />
           </motion.div>
