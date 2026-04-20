@@ -82,6 +82,9 @@ const CARD_SPRITE: Partial<Record<string, string>> = {
   DISPLACEMENT: '/images/Sprites/displacementsprite.png',
 }
 
+/** Shown on a seat when that gangster is eliminated by any means */
+const ELIMINATION_SPRITE = '/images/Sprites/explosionsprite.png'
+
 /** Per-action visual feedback included in sync payloads so receiving clients can replay animations and logs */
 export interface SyncAction {
   playerId: string
@@ -146,8 +149,6 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
 
   // Confirmation dialog state
   const [confirmAction, setConfirmAction] = useState<null | 'restart' | 'quit'>(null)
-  // Discard confirmation — shows modal before entering SELECT_DISCARD phase
-  const [pendingDiscard, setPendingDiscard] = useState(false)
 
   const getInitialState = (): GameState => {
     let base: GameState
@@ -301,12 +302,13 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
           if (act.spriteAnim) {
             const { seatIds, imagePath } = act.spriteAnim
             if (act.cardType === "DISPLACEMENT" && seatIds.length >= 2) {
-              triggerSeatSprite([seatIds[0]], imagePath, 700)
-              setTimeout(() => triggerSeatSprite([seatIds[1]], imagePath, 700), 380)
+              triggerSeatSprite([seatIds[0]], imagePath, 900)
+              setTimeout(() => triggerSeatSprite([seatIds[1]], imagePath, 900), 450)
             } else {
+              // knife/gun/pass_cake: sprite on attacker/source seat (seatIds[0])
               const spriteSeats = (act.cardType === "KNIFE" || act.cardType === "GUN" || act.cardType === "PASS_CAKE")
-                ? seatIds.slice(1) : seatIds
-              triggerSeatSprite(spriteSeats, imagePath, 700)
+                ? [seatIds[0]] : seatIds
+              triggerSeatSprite(spriteSeats, imagePath, 900)
             }
           }
           if (act.sound) {
@@ -396,11 +398,23 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       if (explodingCakes.length > 0) {
         const stateAfterExplosions = checkCakeExplosions(gameState, currentPlayer.id)
         setGameState(stateAfterExplosions)
-        // Play explosion SFX + seat animations for each cake blast
+        // Play explosion SFX + seat animations + sprites for each cake blast
         for (const cake of explodingCakes) {
           playSFX("explodecake", 0.3)
           const cakePos = gameState.board.find((p) => p.id === cake.seatId)
-          if (cakePos) triggerSeatAnimation([cakePos.id, cakePos.leftId, cakePos.rightId].filter((s): s is number => s != null), "seat-anim-danger", 2000)
+          if (cakePos) {
+            const blastSeats = [cakePos.id, cakePos.leftId, cakePos.rightId].filter((s): s is number => s != null)
+            triggerSeatAnimation(blastSeats, "seat-anim-danger", 2500)
+            triggerSeatSprite(blastSeats, CARD_SPRITE["EXPLODE_CAKE"]!, 900)
+            // Elimination sprite for any gangster removed by this explosion
+            const eliminatedByExplosion = blastSeats.filter(
+              (id) => gameState.board.find((p) => p.id === id)?.occupiedBy !== null &&
+                       stateAfterExplosions.board.find((p) => p.id === id)?.occupiedBy === null
+            )
+            if (eliminatedByExplosion.length > 0) {
+              setTimeout(() => triggerSeatSprite(eliminatedByExplosion, ELIMINATION_SPRITE, 900), 300)
+            }
+          }
         }
         addLogEntry({ round: gameState.turn, playerId: currentPlayer.id, playerName: currentPlayer.name, message: buildExplosionLog(currentPlayer.name, currentPlayer.id, gameState, stateAfterExplosions), type: "explosion" })
       }
@@ -542,9 +556,9 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       const { newState, nextPlayerIndex, logs, actionSummaries, logEntryData, playedCards } = executeSingleBotTurn(latestState, currentPlayerIndex)
 
       // Timing constants
-      const ACTION_STAGGER = 2400    // ms between each action's visual effects
-      const DANGER_ANIM_MS = 2000   // duration of elimination animation (matches CSS)
-      const OTHER_ANIM_MS  = 960    // duration of non-danger animations
+      const ACTION_STAGGER = 2800    // ms between each action's visual effects
+      const DANGER_ANIM_MS = 2500   // duration of elimination animation (matches CSS)
+      const OTHER_ANIM_MS  = 1200   // duration of non-danger animations
 
       // Stagger visual effects — animations play over the OLD board state so the
       // user can clearly see who is being shot / moved before the board updates.
@@ -565,13 +579,14 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
             const spritePath = cardType ? CARD_SPRITE[cardType] : undefined
             if (spritePath && summary.seatIds.length > 0) {
               if (cardType === "DISPLACEMENT" && summary.seatIds.length >= 2) {
-                triggerSeatSprite([summary.seatIds[0]], spritePath, 700)
-                setTimeout(() => triggerSeatSprite([summary.seatIds[1]], spritePath, 700), 380)
+                triggerSeatSprite([summary.seatIds[0]], spritePath, 900)
+                setTimeout(() => triggerSeatSprite([summary.seatIds[1]], spritePath, 900), 450)
               } else {
+                // knife/gun/pass_cake: sprite on attacker/source seat (seatIds[0])
                 const spriteSeats = (cardType === "KNIFE" || cardType === "GUN" || cardType === "PASS_CAKE")
-                  ? summary.seatIds.slice(1)
+                  ? [summary.seatIds[0]]
                   : summary.seatIds
-                triggerSeatSprite(spriteSeats, spritePath, 700)
+                triggerSeatSprite(spriteSeats, spritePath, 900)
               }
             }
           }
@@ -689,12 +704,13 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
 
   const handleSelectDiscardCard = () => {
     if (gameState.currentPhase !== "SELECT_CARD" || secondActionTaken) return
-    setPendingDiscard(true)
+    setSelectedCardId(null)
+    setGameState({ ...gameState, currentPhase: "SELECT_DISCARD" })
   }
 
-  const confirmDiscard = () => {
-    setPendingDiscard(false)
-    setGameState({ ...gameState, currentPhase: "SELECT_DISCARD" })
+  const handleConfirmDiscard = () => {
+    if (gameState.currentPhase !== "SELECT_DISCARD" || !selectedCardId) return
+    handleDiscardCard(selectedCardId)
   }
 
   const handleDiscardCard = (cardId: string) => {
@@ -724,7 +740,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     const hasAliveGangsters = currentPlayer.gangsters.some((g) => g.position !== null)
     if (!hasAliveGangsters && gameState.currentPhase !== "SELECT_DISCARD") return
 
-    if (gameState.currentPhase === "SELECT_DISCARD") { handleDiscardCard(cardId); return }
+    if (gameState.currentPhase === "SELECT_DISCARD") { setSelectedCardId(cardId); return }
     if (gameState.currentPhase === "SELECT_CARD" && !isCardPlayable(gameState, currentPlayer.id, cardId)) {
       return
     }
@@ -954,7 +970,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     } else { return }
 
     const feedback = computeActionSeats(action, gameState)
-    const feedbackDur = feedback.animClass === "seat-anim-danger" ? 2000 : 960
+    const feedbackDur = feedback.animClass === "seat-anim-danger" ? 2500 : 1200
     triggerSeatAnimation(feedback.seatIds, feedback.animClass, feedbackDur)
     if (feedback.soundName) {
       const vol = feedback.soundName === "explodecake" ? 0.3 : 0.7
@@ -965,25 +981,30 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     const spritePath = CARD_SPRITE[card.type]
     if (spritePath && feedback.seatIds.length > 0) {
       if (card.type === "DISPLACEMENT" && feedback.seatIds.length >= 2) {
-        // Directional: blink origin first, then destination (old → new).
-        // Duration must exceed animation length (3 × 220ms = 660ms) so element
-        // stays in the DOM until the animation completes.
-        triggerSeatSprite([feedback.seatIds[0]], spritePath, 700)
-        setTimeout(() => triggerSeatSprite([feedback.seatIds[1]], spritePath, 700), 380)
+        triggerSeatSprite([feedback.seatIds[0]], spritePath, 900)
+        setTimeout(() => triggerSeatSprite([feedback.seatIds[1]], spritePath, 900), 450)
       } else {
-        // knife/gun: sprite on target seat only (skip shooter)
-        // pass_cake: sprite on destination seat only (skip origin)
-        // explode_cake / sleeping_pills: all affected seats simultaneously
+        // knife/gun: sprite on attacker seat (seatIds[0])
+        // pass_cake: sprite on source seat (seatIds[0])
+        // explode_cake / sleeping_pills / order_cake: all affected seats
         const spriteSeats = (card.type === "KNIFE" || card.type === "GUN" || card.type === "PASS_CAKE")
-          ? feedback.seatIds.slice(1)
+          ? [feedback.seatIds[0]]
           : feedback.seatIds
-        triggerSeatSprite(spriteSeats, spritePath, 700)
+        triggerSeatSprite(spriteSeats, spritePath, 900)
       }
     }
 
     const preActionState = newGameState
     try { newGameState = performAction(newGameState, action) }
     catch (err) { return }
+
+    // Elimination sprite — blink on any seat that was occupied before but is now vacated
+    const eliminatedSeats = preActionState.board
+      .filter((pos) => pos.occupiedBy !== null && newGameState.board.find((p) => p.id === pos.id)?.occupiedBy === null)
+      .map((pos) => pos.id)
+    if (eliminatedSeats.length > 0) {
+      setTimeout(() => triggerSeatSprite(eliminatedSeats, ELIMINATION_SPRITE, 900), 300)
+    }
 
     const actionLogEntry: Omit<LogEntry, "id" | "highlighted"> = {
       round: gameState.turn,
@@ -1296,32 +1317,6 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         onRestart={() => setConfirmAction('restart')}
         onNewGame={() => setConfirmAction('quit')}
       />
-      {/* Discard confirmation modal */}
-      {pendingDiscard && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
-          <div className="bg-[#1a0c06] border border-[#C9A84C]/40 rounded-lg w-full max-w-sm p-6 flex flex-col gap-5">
-            <h2 className="text-[#F5AC0E] font-serif font-bold text-lg tracking-wide text-center">Discard a Card?</h2>
-            <p className="text-zinc-300 text-sm text-center leading-relaxed">
-              You will discard one card and draw a replacement. Your turn ends after discarding.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={confirmDiscard}
-                className="flex-1 px-4 py-2 rounded text-sm font-medium bg-[#C9A84C] text-[#1a0c06] hover:bg-[#F5AC0E] transition-colors font-semibold"
-              >
-                Discard
-              </button>
-              <button
-                onClick={() => setPendingDiscard(false)}
-                className="flex-1 px-4 py-2 rounded text-sm font-medium bg-zinc-700 text-white hover:bg-zinc-600 transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {confirmAction && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
           <div className="bg-[#1a0c06] border border-[#C9A84C]/40 rounded-lg w-full max-w-sm p-6 flex flex-col gap-5">
@@ -1498,6 +1493,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                 onCancelAction={handleCancelAction}
                 onSkipSecondDisplacement={handleSkipSecondDisplacement}
                 onSelectDiscardCard={handleSelectDiscardCard}
+                onConfirmDiscard={handleConfirmDiscard}
                 gameOver={gameOver}
                 validGangsters={validGangsters}
                 validTargets={validTargets}

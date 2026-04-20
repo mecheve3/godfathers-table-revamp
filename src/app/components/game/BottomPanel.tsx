@@ -16,6 +16,7 @@ interface BottomPanelProps {
   onCancelAction: () => void
   onSkipSecondDisplacement: () => void
   onSelectDiscardCard: () => void
+  onConfirmDiscard?: () => void
   gameOver: boolean
   validGangsters: number[]
   validTargets: number[]
@@ -38,7 +39,7 @@ interface BottomPanelProps {
 export default function BottomPanel({
   currentPlayer, selectedGangster, selectedCard, selectedCardId, selectedDirection,
   targetPositionId, selectedCake, gamePhase, onSelectCard, onConfirmAction,
-  onCancelAction, onSkipSecondDisplacement, onSelectDiscardCard, gameOver,
+  onCancelAction, onSkipSecondDisplacement, onSelectDiscardCard, onConfirmDiscard, gameOver,
   validGangsters, validTargets, canPlaySecondDisplacement, gameState, secondActionTaken,
   pillsApplied, pendingPillTargetIds, onSkipPill, seatingCurrentPlayerName,
   seatingSelectedGangsterId, onSeatingConfirm, onSeatingBack, humanPlayer, gameMode, botLog,
@@ -136,7 +137,8 @@ export default function BottomPanel({
                 {!canPlaySecondDisplacement && <p className="text-center text-red-400 text-xs">No displacement cards in hand.</p>}
               </div>
             )}
-            {gamePhase === "SELECT_DISCARD" && <div><p className="text-center">Select a card to discard</p><p className="text-center text-xs text-gray-400">You'll draw a new card to replace it</p></div>}
+            {gamePhase === "SELECT_DISCARD" && !selectedCardId && <div><p className="text-center">Select a card to discard</p><p className="text-center text-xs text-gray-400">You'll draw a new card to replace it</p></div>}
+            {gamePhase === "SELECT_DISCARD" && selectedCardId && <div><p className="text-center">Confirm discard?</p><p className="text-center text-xs text-gray-400">{selectedCard?.type.replace(/_/g, " ").toLowerCase()}</p></div>}
             {gamePhase === "SELECT_PILL_TARGET_1" && <div><p className="text-center">Select a gangster to put to sleep (1 of up to 3)</p><p className="text-center text-xs text-gray-400">Click a highlighted gangster on the board</p></div>}
             {gamePhase === "SELECT_PILL_TARGET_2" && <div><p className="text-center">Select a second gangster (optional)</p><p className="text-center text-xs text-gray-400">{pillsApplied} selected — tap Done when finished</p></div>}
             {gamePhase === "SELECT_PILL_TARGET_3" && <div><p className="text-center">Select a third gangster (optional)</p><p className="text-center text-xs text-gray-400">{pillsApplied} selected — tap Done when finished</p></div>}
@@ -171,8 +173,14 @@ export default function BottomPanel({
                 <Btn onClick={onSkipSecondDisplacement} variant="secondary">Skip</Btn>
               </div>
             )}
-            {gamePhase === "SELECT_DISCARD" && (
-              <Btn onClick={onCancelAction} variant="secondary">Cancel discard</Btn>
+            {gamePhase === "SELECT_DISCARD" && !selectedCardId && (
+              <Btn onClick={onCancelAction} variant="secondary">Cancel</Btn>
+            )}
+            {gamePhase === "SELECT_DISCARD" && selectedCardId && (
+              <div className="grid grid-cols-2 gap-2">
+                <Btn onClick={() => onConfirmDiscard?.()}>Confirm Discard</Btn>
+                <Btn onClick={onCancelAction} variant="secondary">Cancel</Btn>
+              </div>
             )}
             {gamePhase === "SELECT_PILL_TARGET_1" && (
               <Btn onClick={onCancelAction} variant="secondary">Cancel</Btn>
