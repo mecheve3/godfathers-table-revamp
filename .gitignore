@@ -1,8 +1,10 @@
 # Dependencies
 node_modules/
+worker/node_modules/
 
 # Build output
 dist/
+worker/dist/
 
 # Environment files
 .env
@@ -18,6 +20,10 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+sentry-wizard-installation-error-*.log
 
 # TypeScript cache
 *.tsbuildinfo
+
+# Wrangler
+.wrangler/

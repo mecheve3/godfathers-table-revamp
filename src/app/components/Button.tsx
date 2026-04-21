@@ -2,7 +2,7 @@ import { motion } from 'motion/react'
 import type { ButtonHTMLAttributes } from 'react'
 import { useLang } from '../context/LanguageContext'
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'onAnimationStart' | 'onDrag' | 'onDragEnd' | 'onDragStart'> {
   variant?: 'primary' | 'ghost'
   isLoading?: boolean
 }

@@ -1,5 +1,7 @@
 import type { Card as CardType } from "../../features/game/types"
-import { cn } from "../ui/utils"
+import { clsx } from "clsx"
+import { twMerge } from "tailwind-merge"
+const cn = (...args: Parameters<typeof clsx>) => twMerge(clsx(...args))
 import { useEffect, useState } from "react"
 import { isCardPlayable } from "../../features/game/game-logic"
 import { useLang } from "../../context/LanguageContext"
