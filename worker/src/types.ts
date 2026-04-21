@@ -16,6 +16,7 @@ export interface RoomState {
   hostId: string
   status: RoomStatus
   maxPlayers: number
+  seating: 'automatic' | 'manual'
   players: RoomPlayer[]
 }
 

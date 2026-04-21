@@ -53,6 +53,8 @@
   "lobby.start": "Start Game",
   "lobby.copied": "Room code copied!",
   "lobby.starting": "Game starting!",
+  "lobby.error": "Connection failed. Please try again.",
+  "lobby.retry": "Retry",
 
   "auth.login.title": "Login",
   "auth.login.email": "Email",

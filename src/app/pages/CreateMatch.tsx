@@ -65,7 +65,7 @@ export default function CreateMatch() {
 
     setIsLoading(true)
     try {
-      const { roomCode } = await createRoom({ maxPlayers, hostId, hostName: finalName })
+      const { roomCode } = await createRoom({ maxPlayers, hostId, hostName: finalName, seating: seating! })
       setConfig({
         ...config!,
         mode: 'create',

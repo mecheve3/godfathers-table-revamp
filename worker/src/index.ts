@@ -56,7 +56,7 @@ export default {
 
     // POST /api/rooms  — create a new room
     if (request.method === 'POST' && url.pathname === '/api/rooms') {
-      const body = await request.json<{ maxPlayers: number; hostId: string; hostName: string }>()
+      const body = await request.json<{ maxPlayers: number; hostId: string; hostName: string; seating?: 'automatic' | 'manual' }>()
 
       if (!body.hostId || !body.hostName) {
         return json({ error: 'hostId and hostName are required' }, 400)

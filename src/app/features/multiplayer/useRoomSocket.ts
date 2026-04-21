@@ -79,8 +79,14 @@ export function useRoomSocket({
       }
     }
 
-    ws.onclose = () => {
-      setStatus(intentionalClose.current ? 'closed' : 'error')
+    ws.onclose = (event) => {
+      if (intentionalClose.current) {
+        setStatus('closed')
+      } else {
+        setStatus('error')
+        const reason = event.reason || (event.code === 1008 ? 'Rejected by server' : 'Disconnected unexpectedly')
+        onError?.(reason)
+      }
       wsRef.current = null
     }
 

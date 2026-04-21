@@ -6,6 +6,7 @@ export interface CreateRoomParams {
   maxPlayers: number
   hostId: string
   hostName: string
+  seating: 'automatic' | 'manual'
 }
 
 export interface CreateRoomResult {
@@ -22,11 +23,11 @@ export async function createRoom(params: CreateRoomParams): Promise<CreateRoomRe
   })
 
   if (!res.ok) {
-    const err = await res.json<{ error: string }>()
+    const err = await res.json() as { error: string }
     throw new Error(err.error ?? 'Failed to create room')
   }
 
-  return res.json()
+  return res.json() as Promise<CreateRoomResult>
 }
 
 /** GET /api/rooms/:code — verify a room exists and return its state */
@@ -35,11 +36,11 @@ export async function fetchRoom(roomCode: string): Promise<RoomState> {
 
   if (!res.ok) {
     if (res.status === 404) throw new Error('Room not found')
-    const err = await res.json<{ error: string }>()
+    const err = await res.json() as { error: string }
     throw new Error(err.error ?? 'Failed to fetch room')
   }
 
-  return res.json()
+  return res.json() as Promise<RoomState>
 }
 
 /** Build the WebSocket URL for a room */

@@ -87,31 +87,37 @@ export default function MatchLobby() {
 
   // ── WebSocket ────────────────────────────────────────────────────────────
 
-  const handleRoomState = useCallback((r: RoomState) => setRoom(r), [])
-
-  const handleGameStarted = useCallback((r: RoomState) => {
-    setRoom(r)
-    toast.success(t('lobby.starting'))
+  const applyRoomAndNavigate = useCallback((r: RoomState) => {
     const slots = r.players.map((p) => ({
       id: p.id,
       name: p.name,
       kind: p.isHost ? 'host' as const : p.type === 'CPU' ? 'cpu' as const : 'human' as const,
     }))
-    // Find which slot index the local player occupies — this becomes their player identity in-game
     const localPlayerIndex = r.players.findIndex((p) => p.id === playerId)
     setConfig({
       ...config!,
       slots,
       localPlayerIndex: localPlayerIndex >= 0 ? localPlayerIndex : 0,
-      // Ensure settings.maxPlayers is always set correctly for both host and joiner
       settings: {
         maxPlayers: r.maxPlayers,
-        seating: config?.settings?.seating ?? 'automatic',
+        seating: r.seating,
         isPrivate: false,
       },
     })
     navigate('/game')
   }, [config, playerId, navigate, setConfig])
+
+  const handleRoomState = useCallback((r: RoomState) => {
+    setRoom(r)
+    // Reconnect path: server sends ROOM_STATE with status IN_GAME — navigate directly to game
+    if (r.status === 'IN_GAME') applyRoomAndNavigate(r)
+  }, [applyRoomAndNavigate])
+
+  const handleGameStarted = useCallback((r: RoomState) => {
+    setRoom(r)
+    toast.success(t('lobby.starting'))
+    applyRoomAndNavigate(r)
+  }, [applyRoomAndNavigate, t])
 
   const handleError = useCallback((msg: string) => toast.error(msg), [])
 
@@ -148,6 +154,10 @@ export default function MatchLobby() {
   const handleBack = () => {
     disconnect()
     navigate('/menu')
+  }
+
+  const handleRetry = () => {
+    navigate(0) // reload the page to re-attempt connection
   }
 
   // ── Connection badge ─────────────────────────────────────────────────────
@@ -236,8 +246,24 @@ export default function MatchLobby() {
             </motion.p>
           )}
 
+          {/* Error / retry */}
+          {status === 'error' && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex flex-col items-center gap-3"
+            >
+              <p className="text-sm font-serif text-center" style={{ color: '#ef4444' }}>
+                {t('lobby.error')}
+              </p>
+              <Button onClick={handleRetry} className="w-48">
+                {t('lobby.retry')}
+              </Button>
+            </motion.div>
+          )}
+
           {/* Start button — host only */}
-          {isHost && (
+          {isHost && status !== 'error' && (
             <Button
               onClick={handleStartGame}
               isLoading={isStarting}

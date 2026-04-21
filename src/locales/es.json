@@ -53,6 +53,8 @@
   "lobby.start": "Iniciar partida",
   "lobby.copied": "¡Código copiado!",
   "lobby.starting": "¡El juego comienza!",
+  "lobby.error": "Conexión fallida. Por favor, inténtalo de nuevo.",
+  "lobby.retry": "Reintentar",
 
   "auth.login.title": "Iniciar sesión",
   "auth.login.email": "Correo electrónico",

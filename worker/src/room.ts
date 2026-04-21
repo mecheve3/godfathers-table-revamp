@@ -53,13 +53,14 @@ export class GameRoom implements DurableObject {
       return Response.json({ error: 'Room already initialised' }, { status: 409 })
     }
 
-    const body = await request.json<{ roomCode: string; maxPlayers: number; hostId: string; hostName: string }>()
+    const body = await request.json<{ roomCode: string; maxPlayers: number; hostId: string; hostName: string; seating: 'automatic' | 'manual' }>()
 
     const room: RoomState = {
       roomCode: body.roomCode,
       hostId: body.hostId,
       status: 'LOBBY',
       maxPlayers: body.maxPlayers,
+      seating: body.seating ?? 'automatic',
       players: [{
         id: body.hostId,
         name: body.hostName,
@@ -97,20 +98,22 @@ export class GameRoom implements DurableObject {
     const room = await this.getRoom()
     if (!room) return new Response('Room not found', { status: 404 })
 
-    // IN_GAME: only existing players may reconnect; new joins are rejected
-    if (room.status !== 'LOBBY') {
-      const isKnownPlayer = room.players.some((p) => p.id === playerId)
-      if (!isKnownPlayer) {
-        return Response.json({ error: 'Game already started' }, { status: 409 })
-      }
-    }
-
     const pair = new WebSocketPair()
     const [client, server] = Object.values(pair)
 
     // Attach player ID to this WebSocket — persists across hibernation wakeups
     server.serializeAttachment({ playerId } satisfies WsAttachment)
     this.state.acceptWebSocket(server)
+
+    // IN_GAME: only existing players may reconnect; new joins are rejected
+    if (room.status !== 'LOBBY') {
+      const isKnownPlayer = room.players.some((p) => p.id === playerId)
+      if (!isKnownPlayer) {
+        this.send(server, { type: 'ERROR', message: 'Game already started' })
+        server.close(1008, 'Game already started')
+        return new Response(null, { status: 101, webSocket: client })
+      }
+    }
 
     // Mark existing player as connected, or register new joiner
     const existing = room.players.find((p) => p.id === playerId)
@@ -119,6 +122,7 @@ export class GameRoom implements DurableObject {
     } else {
       const humanCount = room.players.filter((p) => p.type === 'HUMAN').length
       if (humanCount >= room.maxPlayers) {
+        this.send(server, { type: 'ERROR', message: 'Room is full' })
         server.close(1008, 'Room full')
         return new Response(null, { status: 101, webSocket: client })
       }
@@ -179,10 +183,12 @@ export class GameRoom implements DurableObject {
 
         // Fill empty seats with CPU players
         const humanCount = room.players.filter((p) => p.type === 'HUMAN').length
+        const cpuStart = room.players.filter((p) => p.type === 'CPU').length
         for (let i = 0; i < room.maxPlayers - humanCount; i++) {
+          const cpuIndex = cpuStart + i + 1
           room.players.push({
-            id: `cpu-${Date.now()}-${i}`,
-            name: `CPU ${i + 1}`,
+            id: `cpu-${cpuIndex}`,
+            name: `CPU ${cpuIndex}`,
             type: 'CPU',
             isHost: false,
             isConnected: true,
