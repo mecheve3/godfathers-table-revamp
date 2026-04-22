@@ -33,4 +33,16 @@ export default defineConfig({
 
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
   assetsInclude: ['**/*.svg', '**/*.csv'],
+
+  server: {
+    // Proxy /api/* and WS upgrades to the local Worker during development.
+    // When VITE_WORKER_URL is set in .env the app uses that absolute URL instead.
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8787',
+        changeOrigin: true,
+        ws: true,
+      },
+    },
+  },
 })
