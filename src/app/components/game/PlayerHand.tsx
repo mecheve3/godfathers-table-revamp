@@ -91,7 +91,7 @@ export default function PlayerHand({ cards, onSelectCard, selectedCardId, disabl
             <div key={card.id} className="relative flex-shrink-0">
               <button
                 onClick={() => onSelectCard(card.id)}
-                disabled={disabled || (!isDiscardMode && (!playableCards[card.id] || isSecondDisplacementLocked))}
+                disabled={isSelected ? false : (disabled || (!isDiscardMode && (!playableCards[card.id] || isSecondDisplacementLocked)))}
                 title={!isPlayable && !isDiscardMode ? t("game.no_gangsters") : ""}
                 className={cn(
                   `w-20 h-28 rounded-md border-2 ${borderColor} overflow-hidden transition-all block`,

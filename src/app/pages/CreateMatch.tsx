@@ -143,6 +143,7 @@ export default function CreateMatch() {
                     selected={seating === 'automatic'}
                     onClick={() => setSeating('automatic')}
                     className="h-44 w-56"
+                    titleSize="text-3xl"
                   />
                   <MatchOptionCard
                     title={t('setup.seating.manual')}
@@ -150,6 +151,7 @@ export default function CreateMatch() {
                     selected={seating === 'manual'}
                     onClick={() => setSeating('manual')}
                     className="h-44 w-56"
+                    titleSize="text-3xl"
                   />
                 </div>
                 <Button onClick={handleSeatingConfirm} disabled={!seating} className="w-64">

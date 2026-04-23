@@ -54,6 +54,26 @@
   animation: sprite-blink 280ms ease-in-out 3 forwards;
 }
 
+/* ── Elimination sprite — slower and larger than generic sprite-blink ────────── */
+@keyframes elimination-blink {
+  0%   { opacity: 0; transform: scale(0.7);  }
+  18%  { opacity: 1; transform: scale(1.45); }
+  50%  { opacity: 1; transform: scale(1.3);  }
+  100% { opacity: 0; transform: scale(1.0);  }
+}
+.elimination-blink {
+  animation: elimination-blink 600ms ease-in-out 3 forwards;
+}
+
+/* ── Displacement preview blink (gangster shown at destination during confirm) ── */
+@keyframes displacement-preview {
+  0%, 100% { opacity: 1;    }
+  50%       { opacity: 0.2; }
+}
+.displacement-preview-blink {
+  animation: displacement-preview 0.55s ease-in-out infinite;
+}
+
 /* ── Cake bomb pulsing indicator ───────────────────────────────────────────── */
 @keyframes cake-bomb-pulse {
   0%, 100% { box-shadow: 0 0 4px 2px rgba(255, 200, 0, 0.7); transform: scale(1);    }
@@ -70,15 +90,17 @@
 }
 .zzz-blink { animation: zzz-blink 1.4s ease-in-out infinite; }
 
-/* ── Newly drawn card highlight ─────────────────────────────────────────────── */
+/* ── Newly drawn card highlight — 2 distinct blinks then settles ─────────────── */
 @keyframes card-new-deal {
-  0%   { box-shadow: 0 0 0 2px rgba(245, 172, 14, 0); transform: translateY(0); }
-  25%  { box-shadow: 0 0 10px 3px rgba(245, 172, 14, 0.85); transform: translateY(-4px); }
-  60%  { box-shadow: 0 0 6px 2px rgba(245, 172, 14, 0.5); transform: translateY(-2px); }
-  100% { box-shadow: 0 0 0 2px rgba(245, 172, 14, 0); transform: translateY(0); }
+  0%   { box-shadow: none; transform: scale(1) translateY(0); }
+  15%  { box-shadow: 0 0 18px 5px rgba(245, 172, 14, 0.95); transform: scale(1.07) translateY(-5px); }
+  35%  { box-shadow: 0 0 5px 1px rgba(245, 172, 14, 0.25); transform: scale(1) translateY(-1px); }
+  55%  { box-shadow: 0 0 14px 4px rgba(245, 172, 14, 0.8); transform: scale(1.05) translateY(-4px); }
+  80%  { box-shadow: 0 0 4px 1px rgba(245, 172, 14, 0.15); transform: scale(1) translateY(0); }
+  100% { box-shadow: none; transform: scale(1) translateY(0); }
 }
 .card-new-deal {
-  animation: card-new-deal 2s ease-out forwards;
+  animation: card-new-deal 1.8s ease-in-out forwards;
 }
 
 /* ── Card play center flash ─────────────────────────────────────────────────── */

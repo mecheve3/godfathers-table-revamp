@@ -57,11 +57,12 @@ export default function BottomPanel({
     : false
   const handPlayer = humanPlayer ?? currentPlayer
 
-  const Btn = ({ onClick, disabled, children, variant = "primary" }: { onClick: () => void; disabled?: boolean; children: React.ReactNode; variant?: "primary" | "secondary" }) => (
+  const Btn = ({ onClick, disabled, children, variant = "primary", wide = false }: { onClick: () => void; disabled?: boolean; children: React.ReactNode; variant?: "primary" | "secondary"; wide?: boolean }) => (
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`flex items-center justify-center gap-2 px-3 py-2 rounded text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed
+      className={`flex items-center justify-center gap-2 rounded text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed
+        ${wide ? "w-full px-4 py-3" : "px-3 py-2"}
         ${variant === "primary"
           ? "bg-[#F5AC0E] text-[#2B1710] hover:bg-[#F5AC0E]/80"
           : "bg-zinc-700 text-white hover:bg-zinc-600"}`}
@@ -198,12 +199,12 @@ export default function BottomPanel({
               </div>
             )}
             {gamePhase === "SEATING_SELECT_SEAT" && (
-              <Btn onClick={() => onSeatingBack?.()} variant="secondary">{t("btn.back")}</Btn>
+              <Btn onClick={() => onSeatingBack?.()} variant="secondary" wide>{t("btn.back")}</Btn>
             )}
             {gamePhase === "SEATING_CONFIRM" && (
               <div className="grid grid-cols-2 gap-2">
-                <Btn onClick={() => onSeatingConfirm?.()}>{t("btn.confirm")}</Btn>
-                <Btn onClick={() => onSeatingBack?.()} variant="secondary">{t("btn.back")}</Btn>
+                <Btn onClick={() => onSeatingConfirm?.()} wide>{t("btn.confirm")}</Btn>
+                <Btn onClick={() => onSeatingBack?.()} variant="secondary" wide>{t("btn.back")}</Btn>
               </div>
             )}
           </div>

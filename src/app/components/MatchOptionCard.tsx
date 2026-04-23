@@ -8,6 +8,8 @@ interface MatchOptionCardProps {
   onClick: () => void
   children?: ReactNode
   className?: string
+  /** Override the title font size class (default "text-5xl") — use for long translated strings */
+  titleSize?: string
 }
 
 export function MatchOptionCard({
@@ -17,6 +19,7 @@ export function MatchOptionCard({
   onClick,
   children,
   className = '',
+  titleSize = 'text-5xl',
 }: MatchOptionCardProps) {
   return (
     <motion.button
@@ -45,7 +48,7 @@ export function MatchOptionCard({
       )}
 
       <span
-        className="text-5xl font-serif font-black leading-tight"
+        className={`${titleSize} font-serif font-black leading-tight text-center px-2 break-words`}
         style={{
           color: selected ? '#C9A84C' : '#6b4c2a',
           textShadow: selected ? '0 0 12px rgba(201,168,76,0.5)' : 'none',

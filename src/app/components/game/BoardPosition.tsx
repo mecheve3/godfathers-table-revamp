@@ -17,6 +17,12 @@ interface BoardPositionProps {
   onDragStart?: () => void
   onDragOver?: (e: React.DragEvent<HTMLDivElement>) => void
   onDrop?: () => void
+  /** Hide the real occupant image (displacement source during confirm) */
+  hideOccupant?: boolean
+  /** Show a blinking preview gangster here (displacement destination during confirm) */
+  previewGangster?: { imageSrc: string; playerId: string } | null
+  /** Show a purple ring — gangster already selected as a sleeping-pill target */
+  pillSelected?: boolean
 }
 
 const positionMap: Record<number, { x: number; y: number }> = {
@@ -83,7 +89,7 @@ const getGangsterTypeName = (type: GangsterType) => {
 const getGangsterImage = (playerId: string, type: GangsterType) =>
   `/images/players/${getTeam(playerId)}/${getGangsterTypeName(type)}.png`
 
-export default function BoardPosition({ position, gameState, selected, highlighted, onClick, animClass, spriteOverlay, spriteLarge, onCakeClick, draggable, onDragStart, onDragOver, onDrop }: BoardPositionProps) {
+export default function BoardPosition({ position, gameState, selected, highlighted, onClick, animClass, spriteOverlay, spriteLarge, onCakeClick, draggable, onDragStart, onDragOver, onDrop, hideOccupant, previewGangster, pillSelected }: BoardPositionProps) {
   const [cakes, setCakes] = useState<typeof gameState.cakes>([])
   const style = getPositionStyle(position.id)
 
@@ -107,14 +113,17 @@ export default function BoardPosition({ position, gameState, selected, highlight
     }
   }
 
+  const effectivelyEmpty = !occupiedBy || hideOccupant
+
   return (
     <>
       <div
         className={`absolute w-10 h-10 md:w-14 md:h-14 rounded-full overflow-hidden flex items-center justify-center cursor-pointer border-2 border-gray-300
+          ${pillSelected ? "ring-4 ring-purple-400" : ""}
           ${selected ? "ring-4 ring-white" : ""}
           ${highlighted ? "ring-4 ring-yellow-400 animate-pulse" : ""}
           ${animClass ?? ""}
-          ${occupiedBy ? gangsterColor : "bg-zinc-800/80 hover:bg-zinc-700/90"}`}
+          ${!effectivelyEmpty ? gangsterColor : "bg-zinc-800/80 hover:bg-zinc-700/90"}`}
         style={style}
         onClick={onClick}
         draggable={draggable}
@@ -132,17 +141,25 @@ export default function BoardPosition({ position, gameState, selected, highlight
         onDragOver={onDragOver}
         onDrop={onDrop ? (e) => { e.preventDefault(); onDrop() } : undefined}
       >
-        {gangsterDetails && (
+        {gangsterDetails && !hideOccupant && (
           <img
             src={gangsterDetails.imageSrc}
             alt={gangsterDetails.type}
             className={`w-full h-full object-contain ${isSleeping ? "opacity-70" : ""}`}
           />
         )}
-        {isSleeping && (
+        {isSleeping && !hideOccupant && (
           <div className="absolute inset-0 flex items-center justify-center bg-blue-900/50 rounded-full pointer-events-none">
             <span className="text-sm font-black text-blue-100 leading-none zzz-blink drop-shadow-lg">Zzz</span>
           </div>
+        )}
+        {previewGangster && (
+          <img
+            src={previewGangster.imageSrc}
+            alt="preview"
+            className="w-full h-full object-contain displacement-preview-blink"
+            draggable={false}
+          />
         )}
       </div>
 
@@ -156,7 +173,7 @@ export default function BoardPosition({ position, gameState, selected, highlight
           <img
             src={spriteOverlay}
             alt=""
-            className="w-full h-full object-contain sprite-blink"
+            className={`w-full h-full object-contain ${spriteOverlay.includes('elimination') ? 'elimination-blink' : 'sprite-blink'}`}
             draggable={false}
           />
         </div>

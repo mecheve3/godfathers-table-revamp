@@ -15,6 +15,10 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   const [sfxOn, setSfxOn] = useState(true)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const startedRef = useRef(false)
+  // Ref mirror so tryPlay can read the latest value after React state settles
+  const musicEnabledRef = useRef(true)
+
+  useEffect(() => { musicEnabledRef.current = musicEnabled }, [musicEnabled])
 
   // Initialise audio element once
   useEffect(() => {
@@ -24,12 +28,17 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     audioRef.current = audio
 
     const tryPlay = () => {
-      if (!startedRef.current && musicEnabled) {
-        audio.play().catch(() => {})
-        startedRef.current = true
-      }
       document.removeEventListener('click', tryPlay)
       document.removeEventListener('keydown', tryPlay)
+      // Defer 20ms so React state updates (e.g. toggleMusic) settle before we
+      // decide whether to start playback. Prevents the first-click-on-speaker bug
+      // where tryPlay starts audio then the toggle's useEffect immediately pauses it.
+      setTimeout(() => {
+        if (!startedRef.current && musicEnabledRef.current) {
+          audio.play().catch(() => {})
+          startedRef.current = true
+        }
+      }, 20)
     }
     document.addEventListener('click', tryPlay)
     document.addEventListener('keydown', tryPlay)

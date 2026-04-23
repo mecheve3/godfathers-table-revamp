@@ -316,7 +316,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
             } else if (act.cardType === "KNIFE" || act.cardType === "GUN") {
               triggerSeatSprite([seatIds[0]], imagePath, 900)
               if (seatIds.length >= 2 && gameState.board.find((p) => p.id === seatIds[1])?.occupiedBy != null) {
-                setTimeout(() => triggerSeatSprite([seatIds[1]], ELIMINATION_SPRITE, 1400), 500)
+                setTimeout(() => triggerSeatSprite([seatIds[1]], ELIMINATION_SPRITE, 1800), 900)
               }
             } else if (act.cardType === "PASS_CAKE") {
               triggerSeatSprite([seatIds[0]], imagePath, 900)
@@ -376,11 +376,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   // Tracks "playerId:turn" to prevent double-paying on phase changes (e.g. cancel)
   const paymentProcessedRef = useRef<string>("")
 
-  useEffect(() => {
-    const handleClick = () => playSFX("click", 0.3)
-    document.addEventListener("click", handleClick)
-    return () => document.removeEventListener("click", handleClick)
-  }, [])
+  // Click SFX is played explicitly inside each meaningful handler instead of globally
 
   useEffect(() => {
     if (seatingType === "manual" && gameState.currentPhase === "SEATING_SELECT_GANGSTER") {
@@ -411,29 +407,32 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         return owner?.gangsters.some((g) => g.position !== null) ?? false
       })
       if (explodingCakes.length > 0) {
-        const stateAfterExplosions = checkCakeExplosions(gameState, currentPlayer.id)
-        setGameState(stateAfterExplosions)
-        // Play explosion SFX + seat animations + sprites for each cake blast
-        for (const cake of explodingCakes) {
-          playSFX("explodecake", 0.3)
-          const cakePos = gameState.board.find((p) => p.id === cake.seatId)
-          if (cakePos) {
-            const blastSeats = [cakePos.id, cakePos.leftId, cakePos.rightId].filter((s): s is number => s != null)
-            triggerSeatAnimation(blastSeats, "seat-anim-danger", 2500)
-            // Sprite only on the center cake seat — blast radius seats are covered by seat animation.
-            // Keeping center-only prevents the sprite from overwriting sprites from the previous turn.
-            triggerSeatSprite([cakePos.id], CARD_SPRITE["EXPLODE_CAKE"]!, 900, true)
-            // Elimination sprite for each gangster removed by this explosion
-            const eliminatedByExplosion = blastSeats.filter(
-              (id) => gameState.board.find((p) => p.id === id)?.occupiedBy !== null &&
-                       stateAfterExplosions.board.find((p) => p.id === id)?.occupiedBy === null
-            )
-            if (eliminatedByExplosion.length > 0) {
-              setTimeout(() => triggerSeatSprite(eliminatedByExplosion, ELIMINATION_SPRITE, 1400), 500)
+        // Brief pause so the explosion is visually separated from the previous player's action
+        const explosionTimer = setTimeout(() => {
+          const stateAfterExplosions = checkCakeExplosions(gameState, currentPlayer.id)
+          setGameState(stateAfterExplosions)
+          // Play explosion SFX + seat animations + sprites for each cake blast
+          for (const cake of explodingCakes) {
+            playSFX("explodecake", 0.3)
+            const cakePos = gameState.board.find((p) => p.id === cake.seatId)
+            if (cakePos) {
+              const blastSeats = [cakePos.id, cakePos.leftId, cakePos.rightId].filter((s): s is number => s != null)
+              triggerSeatAnimation(blastSeats, "seat-anim-danger", 2500)
+              // Sprite only on the center cake seat — blast radius seats are covered by seat animation.
+              triggerSeatSprite([cakePos.id], CARD_SPRITE["EXPLODE_CAKE"]!, 900, true)
+              // Elimination sprite for each gangster removed by this explosion
+              const eliminatedByExplosion = blastSeats.filter(
+                (id) => gameState.board.find((p) => p.id === id)?.occupiedBy !== null &&
+                         stateAfterExplosions.board.find((p) => p.id === id)?.occupiedBy === null
+              )
+              if (eliminatedByExplosion.length > 0) {
+                setTimeout(() => triggerSeatSprite(eliminatedByExplosion, ELIMINATION_SPRITE, 1800), 900)
+              }
             }
           }
-        }
-        addLogEntry({ round: gameState.turn, playerId: currentPlayer.id, playerName: currentPlayer.name, message: buildExplosionLog(currentPlayer.name, currentPlayer.id, gameState, stateAfterExplosions), type: "explosion" })
+          addLogEntry({ round: gameState.turn, playerId: currentPlayer.id, playerName: currentPlayer.name, message: buildExplosionLog(currentPlayer.name, currentPlayer.id, gameState, stateAfterExplosions), type: "explosion" })
+        }, 500)
+        return () => clearTimeout(explosionTimer)
       }
     }
   }, [currentPlayerIndex, gameState]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -451,7 +450,11 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         const updatedPlayers = [...gameState.players]
         updatedPlayers[currentPlayerIndex] = { ...currentPlayer, money: currentPlayer.money + payment }
         setGameState({ ...gameState, players: updatedPlayers, bankMoney: Math.max(0, gameState.bankMoney - payment) })
-        if (gameMode !== "solo" || currentPlayer.id === "player1") playSFX("bank", 0.7)
+        const shouldPlayCash =
+          gameMode === "hotseat" ||
+          (gameMode === "solo" && currentPlayer.id === "player1") ||
+          (gameMode === "multiplayer" && currentPlayer.id === localPlayerId)
+        if (shouldPlayCash) playSFX("bank", 0.7)
         // In multiplayer, the incomingSync handler replays this log at the correct position
         // in the action sequence — suppress the local log to avoid ordering issues on P2+
         if (!suppressPaymentLogRef.current) {
@@ -474,6 +477,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         setGameState({ ...gameState, players: updatedPlayers, bankMoney: 0 })
       }
       setGameOver(true)
+      playSFX("bell", 0.8, 0, "flac")
       const sortedPlayers = [...gameState.players].sort((a, b) => b.money - a.money)
       if (sortedPlayers.length > 1 && sortedPlayers[0].money === sortedPlayers[1].money) {
         const tiedPlayers = sortedPlayers.filter((p) => p.money === sortedPlayers[0].money)
@@ -606,7 +610,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                   const targetId = summary.seatIds[1]
                   const preState = i === 0 ? latestState : (stateAfterFirstAction ?? latestState)
                   if (preState.board.find((p) => p.id === targetId)?.occupiedBy != null) {
-                    setTimeout(() => triggerSeatSprite([targetId], ELIMINATION_SPRITE, 1400), 500)
+                    setTimeout(() => triggerSeatSprite([targetId], ELIMINATION_SPRITE, 1800), 900)
                   }
                 }
               } else if (cardType === "PASS_CAKE") {
@@ -620,7 +624,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                            postState.board.find((p) => p.id === id)?.occupiedBy === null
                 )
                 if (eliminatedSeats.length > 0) {
-                  setTimeout(() => triggerSeatSprite(eliminatedSeats, ELIMINATION_SPRITE, 1400), 500)
+                  setTimeout(() => triggerSeatSprite(eliminatedSeats, ELIMINATION_SPRITE, 1800), 900)
                 }
               } else {
                 triggerSeatSprite(summary.seatIds, spritePath, 900)
@@ -746,6 +750,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
 
   const handleSelectDiscardCard = () => {
     if (gameState.currentPhase !== "SELECT_CARD" || secondActionTaken) return
+    playSFX("click", 0.3)
     setSelectedCardId(null)
     setGameState({ ...gameState, currentPhase: "SELECT_DISCARD" })
   }
@@ -778,14 +783,22 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     const card = currentPlayer.hand.find((c) => c.id === cardId)
     if (!card) return
 
+    // Re-clicking the already-selected card cancels (same as the Cancel button)
+    if (cardId === selectedCardId) {
+      playSFX("click", 0.3)
+      handleCancelAction()
+      return
+    }
+
     // Eliminated players (no alive gangsters) cannot play any card
     const hasAliveGangsters = currentPlayer.gangsters.some((g) => g.position !== null)
     if (!hasAliveGangsters && gameState.currentPhase !== "SELECT_DISCARD") return
 
-    if (gameState.currentPhase === "SELECT_DISCARD") { setSelectedCardId(cardId); return }
+    if (gameState.currentPhase === "SELECT_DISCARD") { playSFX("click", 0.3); setSelectedCardId(cardId); return }
     if (gameState.currentPhase === "SELECT_CARD" && !isCardPlayable(gameState, currentPlayer.id, cardId)) {
       return
     }
+    playSFX("click", 0.3)
     setSelectedCardId(cardId)
 
     if (gameState.currentPhase === "SECOND_DISPLACEMENT") {
@@ -873,6 +886,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
 
   const handleSelectGangster = (gangsterIndex: number) => {
     if (gameOver) return
+    playSFX("click", 0.3)
     const currentPlayer = gameState.players[currentPlayerIndex]
     const gangster = currentPlayer.gangsters[gangsterIndex]
     if (!gangster || gangster.position === null || !selectedCardId) return
@@ -936,7 +950,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
 
     if (gameState.currentPhase === "SELECT_CAKE" && selectedCardId) {
       const cakesAtPosition = gameState.cakes.filter((cake) => cake.seatId === positionId)
-      if (cakesAtPosition.length > 0) handleSelectCake(cakesAtPosition[0].id)
+      if (cakesAtPosition.length > 0) { playSFX("click", 0.3); handleSelectCake(cakesAtPosition[0].id) }
       return
     }
     if (gameState.currentPhase === "SELECT_GANGSTER") {
@@ -955,12 +969,14 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       if (!card) return
       if (card.type === "ORDER_CAKE") {
         if (validTargets.includes(positionId)) {
+          playSFX("click", 0.3)
           setTargetPositionId(positionId); setGameState({ ...gameState, currentPhase: "CONFIRM_ACTION" })
         }
         return
       }
       if (card.type === "DISPLACEMENT" && selectedGangsterIndex !== null) {
         if (position.occupiedBy === null && validTargets.includes(positionId)) {
+          playSFX("click", 0.3)
           setTargetPositionId(positionId); setGameState({ ...gameState, currentPhase: "CONFIRM_ACTION" })
         }
         return
@@ -973,7 +989,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         let direction: "left" | "right" | null = null
         if (gangsterPosition.leftId === positionId) direction = "left"
         else if (gangsterPosition.rightId === positionId) direction = "right"
-        if (direction) { setSelectedDirection(direction); setTargetPositionId(positionId); setGameState({ ...gameState, currentPhase: "CONFIRM_ACTION" }) }
+        if (direction) { playSFX("click", 0.3); setSelectedDirection(direction); setTargetPositionId(positionId); setGameState({ ...gameState, currentPhase: "CONFIRM_ACTION" }) }
       }
       if (card.type === "PASS_CAKE" && gameState.selectedCakeId) {
         const cake = gameState.cakes.find((c) => c.id === gameState.selectedCakeId)
@@ -983,7 +999,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         let direction: "left" | "right" | null = null
         if (cakePosition.leftId === positionId) direction = "left"
         else if (cakePosition.rightId === positionId) direction = "right"
-        if (direction && validDirections.includes(direction)) { setSelectedDirection(direction); setGameState({ ...gameState, currentPhase: "CONFIRM_ACTION" }) }
+        if (direction && validDirections.includes(direction)) { playSFX("click", 0.3); setSelectedDirection(direction); setGameState({ ...gameState, currentPhase: "CONFIRM_ACTION" }) }
       }
     }
   }
@@ -1011,6 +1027,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
 
   const handleConfirmAction = () => {
     if (gameOver || !selectedCardId) return
+    playSFX("click", 0.3)
     const currentPlayer = gameState.players[currentPlayerIndex]
     const card = currentPlayer.hand.find((c) => c.id === selectedCardId)
     if (!card) return
@@ -1031,7 +1048,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       const policeRaidLogEntry: Omit<LogEntry, "id" | "highlighted"> = { round: gameState.turn, playerId: currentPlayer.id, playerName: currentPlayer.name, message: `${currentPlayer.name} triggers Police Raid — all gangsters cleared! Re-seating begins.`, type: "system" }
       addLogEntry(policeRaidLogEntry)
       // Broadcast immediately so other clients enter seating mode at the same time
-      onTurnEnd?.({ gameState: newGameState, currentPlayerIndex: currentPlayerIndex, seatingPlayerOrder: rotated, seatingCurrentIdx: 0, seatingQueue: queue, actions: [{ playerId: currentPlayer.id, cardType: 'POLICE_RAID', logEntry: policeRaidLogEntry }] })
+      onTurnEnd?.({ gameState: newGameState, currentPlayerIndex: currentPlayerIndex, seatingPlayerOrder: rotated, seatingCurrentIdx: 0, seatingQueue: queue, actions: [{ playerId: currentPlayer.id, cardType: 'POLICE_RAID', logEntry: policeRaidLogEntry, sound: { name: 'policeraid', vol: 0.7 } }] })
       setGameState(newGameState); return
     }
 
@@ -1063,7 +1080,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         // Action sprite on attacker; schedule elimination sprite on victim if occupied
         triggerSeatSprite([feedback.seatIds[0]], spritePath, 900)
         if (feedback.seatIds.length >= 2 && gameState.board.find((p) => p.id === feedback.seatIds[1])?.occupiedBy != null) {
-          setTimeout(() => triggerSeatSprite([feedback.seatIds[1]], ELIMINATION_SPRITE, 1400), 500)
+          setTimeout(() => triggerSeatSprite([feedback.seatIds[1]], ELIMINATION_SPRITE, 1800), 900)
         }
       } else if (card.type === "PASS_CAKE") {
         triggerSeatSprite([feedback.seatIds[0]], spritePath, 900)
@@ -1085,7 +1102,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         .filter((pos) => pos.occupiedBy !== null && newGameState.board.find((p) => p.id === pos.id)?.occupiedBy === null)
         .map((pos) => pos.id)
       if (eliminatedSeats.length > 0) {
-        setTimeout(() => triggerSeatSprite(eliminatedSeats, ELIMINATION_SPRITE, 1400), 500)
+        setTimeout(() => triggerSeatSprite(eliminatedSeats, ELIMINATION_SPRITE, 1800), 900)
       }
     }
 
@@ -1133,6 +1150,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
 
   const handlePillTargetSelect = (gangsterId: string) => {
     if (!validPillTargets.includes(gangsterId)) return
+    playSFX("click", 0.3)
     const currentPlayer = gameState.players[currentPlayerIndex]
     const newTargets = [...pendingPillTargetIds, gangsterId]
     setPendingPillTargetIds(newTargets); setPillsApplied(newTargets.length)
@@ -1142,11 +1160,12 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     else setGameState({ ...gameState, currentPhase: "CONFIRM_PILLS" })
   }
 
-  const handleSkipPill = () => { if (pendingPillTargetIds.length === 0) return; setGameState({ ...gameState, currentPhase: "CONFIRM_PILLS" }) }
+  const handleSkipPill = () => { if (pendingPillTargetIds.length === 0) return; playSFX("click", 0.3); setGameState({ ...gameState, currentPhase: "CONFIRM_PILLS" }) }
 
   const handleSeatingGangsterSelect = (gangsterId: string) => {
     const currentSeatingPlayerId = seatingPlayerOrder[seatingCurrentIdx]
     if (!currentSeatingPlayerId) return
+    playSFX("click", 0.3)
     // In multiplayer, only the player whose turn it is can select gangsters
     if (localPlayerId && currentSeatingPlayerId !== localPlayerId) return
     const queue = seatingQueue[currentSeatingPlayerId] ?? []
@@ -1160,15 +1179,18 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     if (!seatingSelectedGangsterId) return
     const seat = gameState.board.find((p) => p.id === seatId)
     if (!seat || seat.occupiedBy !== null) return
+    playSFX("click", 0.3)
     setTargetPositionId(seatId); setGameState({ ...gameState, currentPhase: "SEATING_CONFIRM" })
   }
 
   const handleSeatingBack = () => {
+    playSFX("click", 0.3)
     setSeatingSelectedGangsterId(null); setTargetPositionId(null); setValidTargets([])
     setGameState({ ...gameState, currentPhase: "SEATING_SELECT_GANGSTER" })
   }
 
   const handleSeatingConfirm = () => {
+    playSFX("click", 0.3)
     if (!seatingSelectedGangsterId || !targetPositionId) return
     const currentSeatingPlayerId = seatingPlayerOrder[seatingCurrentIdx]
     const playerName = gameState.players.find((p) => p.id === currentSeatingPlayerId)?.name ?? currentSeatingPlayerId
@@ -1203,6 +1225,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   }
 
   const handleCancelAction = () => {
+    playSFX("click", 0.3)
     setSelectedCardId(null); setSelectedGangsterIndex(null); setSelectedDirection(null); setTargetPositionId(null)
     setValidGangsters([]); setValidTargets([]); setValidCakes([]); setValidDirections([])
     setPillsApplied(0); setPendingPillTargetIds([]); setValidPillTargets([])
@@ -1274,6 +1297,15 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   const selectedGangster = selectedGangsterIndex !== null ? gameState.players[currentPlayerIndex].gangsters[selectedGangsterIndex] : null
   const selectedCard = selectedCardId ? gameState.players[currentPlayerIndex].hand.find((c) => c.id === selectedCardId) || null : null
   const selectedCake = gameState.selectedCakeId ? gameState.cakes.find((c) => c.id === gameState.selectedCakeId) || null : null
+
+  // Displacement preview: when confirming a displacement, hide the gangster from the source
+  // seat and show a blinking preview at the destination seat
+  const TEAM_FOR_PLAYER: Record<string, string> = { player1: 'red', player2: 'blue', player3: 'yellow', player4: 'green', player5: 'orange', player6: 'purple' }
+  const TYPE_NAME_MAP: Record<string, string> = { GODFATHER: 'godfather', GUNMAN: 'gunman', BLADESLINGER: 'bladeslinger', THUG: 'thug' }
+  const isDisplacementConfirm = gameState.currentPhase === "CONFIRM_ACTION" && selectedCard?.type === "DISPLACEMENT"
+  const selectedGangsterPreviewSrc = isDisplacementConfirm && selectedGangster
+    ? `/images/players/${TEAM_FOR_PLAYER[gameState.players[currentPlayerIndex].id] ?? 'gray'}/${TYPE_NAME_MAP[selectedGangster.type] ?? 'unknown'}.png`
+    : null
 
   // Lock body scroll while game is active
   useEffect(() => {
@@ -1510,7 +1542,8 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                         position={position}
                         gameState={gameState}
                         selected={
-                          (selectedGangsterIndex !== null && gameState.players[currentPlayerIndex].gangsters[selectedGangsterIndex].position === position.id) ||
+                          // Don't show "selected" ring on displacement source seat during confirm
+                          (selectedGangsterIndex !== null && gameState.players[currentPlayerIndex].gangsters[selectedGangsterIndex].position === position.id && !isDisplacementConfirm) ||
                           (selectedCake != null && selectedCake.seatId === position.id)
                         }
                         highlighted={
@@ -1521,6 +1554,17 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                           (["SELECT_PILL_TARGET_1", "SELECT_PILL_TARGET_2", "SELECT_PILL_TARGET_3"].includes(gameState.currentPhase) &&
                             validPillTargets.some((gangsterId) => { for (const p of gameState.players) { const g = p.gangsters.find((g) => g.id === gangsterId); if (g && g.position === position.id) return true } return false })) ||
                           (gameState.currentPhase === "SEATING_SELECT_SEAT" && validTargets.includes(position.id))
+                        }
+                        pillSelected={
+                          position.occupiedBy != null &&
+                          ["SELECT_PILL_TARGET_1", "SELECT_PILL_TARGET_2", "SELECT_PILL_TARGET_3", "CONFIRM_PILLS"].includes(gameState.currentPhase) &&
+                          pendingPillTargetIds.includes(position.occupiedBy.gangsterId)
+                        }
+                        hideOccupant={isDisplacementConfirm && position.id === selectedGangster?.position}
+                        previewGangster={
+                          isDisplacementConfirm && position.id === targetPositionId && selectedGangsterPreviewSrc
+                            ? { imageSrc: selectedGangsterPreviewSrc, playerId: gameState.players[currentPlayerIndex].id }
+                            : undefined
                         }
                         onClick={() => handlePositionClick(position.id)}
                         animClass={seatAnimations[position.id]}
