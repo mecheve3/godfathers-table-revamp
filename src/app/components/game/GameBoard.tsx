@@ -1399,9 +1399,10 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       <div className="flex flex-row flex-1 min-h-0 overflow-hidden">
         <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
           <TopPanel
-        onRestart={() => setConfirmAction('restart')}
-        onNewGame={() => setConfirmAction('quit')}
-      />
+            onRestart={() => setConfirmAction('restart')}
+            onNewGame={() => setConfirmAction('quit')}
+            showRulebookOnMount
+          />
       {confirmAction && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div
