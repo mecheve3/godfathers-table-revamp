@@ -14,21 +14,21 @@ interface TopPanelProps {
 const CHAPTER_IDS = ['ch1', 'ch2', 'ch3', 'ch4'] as const
 
 const CARD_KEYS = [
-  { nameKey: "howto.card.KNIFE.name",         descKey: "howto.card.KNIFE.desc" },
-  { nameKey: "howto.card.GUN.name",            descKey: "howto.card.GUN.desc" },
-  { nameKey: "howto.card.ORDER_CAKE.name",     descKey: "howto.card.ORDER_CAKE.desc" },
-  { nameKey: "howto.card.PASS_CAKE.name",      descKey: "howto.card.PASS_CAKE.desc" },
-  { nameKey: "howto.card.EXPLODE_CAKE.name",   descKey: "howto.card.EXPLODE_CAKE.desc" },
-  { nameKey: "howto.card.SLEEPING_PILL.name",  descKey: "howto.card.SLEEPING_PILL.desc" },
-  { nameKey: "howto.card.POLICE_RAID.name",    descKey: "howto.card.POLICE_RAID.desc" },
-  { nameKey: "howto.card.DISPLACEMENT.name",   descKey: "howto.card.DISPLACEMENT.desc" },
+  { nameKey: "howto.card.KNIFE.name",         descKey: "howto.card.KNIFE.desc",         imgSrc: "/images/cards/knife.png" },
+  { nameKey: "howto.card.GUN.name",            descKey: "howto.card.GUN.desc",            imgSrc: "/images/cards/gun.png" },
+  { nameKey: "howto.card.ORDER_CAKE.name",     descKey: "howto.card.ORDER_CAKE.desc",     imgSrc: "/images/cards/ordercake.png" },
+  { nameKey: "howto.card.PASS_CAKE.name",      descKey: "howto.card.PASS_CAKE.desc",      imgSrc: "/images/cards/passcake.png" },
+  { nameKey: "howto.card.EXPLODE_CAKE.name",   descKey: "howto.card.EXPLODE_CAKE.desc",   imgSrc: "/images/cards/explodecake.png" },
+  { nameKey: "howto.card.SLEEPING_PILL.name",  descKey: "howto.card.SLEEPING_PILL.desc",  imgSrc: "/images/cards/sleepingpills.png" },
+  { nameKey: "howto.card.POLICE_RAID.name",    descKey: "howto.card.POLICE_RAID.desc",    imgSrc: "/images/cards/policeraid.png" },
+  { nameKey: "howto.card.DISPLACEMENT.name",   descKey: "howto.card.DISPLACEMENT.desc",   imgSrc: "/images/cards/displacement.png" },
 ]
 
 const GANGSTER_KEYS = [
-  { nameKey: "howto.ch1.godfather.name",   descKey: "howto.ch1.godfather.desc" },
-  { nameKey: "howto.ch1.gunman.name",      descKey: "howto.ch1.gunman.desc" },
-  { nameKey: "howto.ch1.bladeslinger.name",descKey: "howto.ch1.bladeslinger.desc" },
-  { nameKey: "howto.ch1.thug.name",        descKey: "howto.ch1.thug.desc" },
+  { nameKey: "howto.ch1.godfather.name",    descKey: "howto.ch1.godfather.desc",    imgSrc: "/images/players/red/godfather.png" },
+  { nameKey: "howto.ch1.gunman.name",       descKey: "howto.ch1.gunman.desc",       imgSrc: "/images/players/red/gunman.png" },
+  { nameKey: "howto.ch1.bladeslinger.name", descKey: "howto.ch1.bladeslinger.desc", imgSrc: "/images/players/red/bladeslinger.png" },
+  { nameKey: "howto.ch1.thug.name",         descKey: "howto.ch1.thug.desc",         imgSrc: "/images/players/red/thug.png" },
 ]
 
 const TURN_KEYS = [
@@ -104,10 +104,15 @@ function HowToPlayModal({ onClose, startChapter = 0 }: { onClose: () => void; st
                 <h3 className="text-[#C9A84C] font-semibold text-xs uppercase tracking-widest mb-2.5">
                   {t("howto.ch1.family.title")}
                 </h3>
-                <ul className="space-y-2.5">
+                <ul className="space-y-3">
                   {GANGSTER_KEYS.map((g) => (
-                    <li key={g.nameKey} className="text-sm flex gap-2">
-                      <span className="text-[#F5AC0E] font-bold flex-shrink-0">◆</span>
+                    <li key={g.nameKey} className="text-sm flex gap-3 items-center">
+                      <img
+                        src={g.imgSrc}
+                        alt={t(g.nameKey)}
+                        className="w-12 h-12 object-contain flex-shrink-0 rounded-full border border-[#C9A84C]/30 bg-zinc-900/60"
+                        draggable={false}
+                      />
                       <span>
                         <span className="text-[#F5AC0E] font-semibold">{t(g.nameKey)} — </span>
                         <span className="text-zinc-300 leading-relaxed">{t(g.descKey)}</span>
@@ -162,11 +167,19 @@ function HowToPlayModal({ onClose, startChapter = 0 }: { onClose: () => void; st
 
           {/* ── Chapter 3: Action Cards ── */}
           {chapter === 2 && (
-            <ul className="space-y-3">
+            <ul className="space-y-4">
               {CARD_KEYS.map((c) => (
-                <li key={c.nameKey} className="text-sm">
-                  <span className="text-[#F5AC0E] font-semibold">{t(c.nameKey)}: </span>
-                  <span className="text-zinc-300 leading-relaxed">{t(c.descKey)}</span>
+                <li key={c.nameKey} className="text-sm flex gap-3 items-start">
+                  <img
+                    src={c.imgSrc}
+                    alt={t(c.nameKey)}
+                    className="w-10 h-14 object-contain flex-shrink-0 rounded border border-[#C9A84C]/20 bg-zinc-900/40"
+                    draggable={false}
+                  />
+                  <span>
+                    <span className="text-[#F5AC0E] font-semibold">{t(c.nameKey)}: </span>
+                    <span className="text-zinc-300 leading-relaxed">{t(c.descKey)}</span>
+                  </span>
                 </li>
               ))}
             </ul>

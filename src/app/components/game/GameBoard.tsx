@@ -357,7 +357,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     const firstBreakdown = seatingType !== "manual" ? calculatePaymentBreakdown(gameState.players[0], gameState.board) : null
     const firstPayment = firstBreakdown?.total ?? 0
     const paymentLogEntry: Omit<LogEntry, "id" | "highlighted"> | undefined = firstPayment > 0 && firstBreakdown
-      ? { round: gameState.turn, playerId: gameState.players[0].id, playerName: gameState.players[0].name, message: buildPaymentLog(gameState.players[0].name, firstPayment, firstBreakdown), type: "payment" }
+      ? { round: gameState.turn, playerId: gameState.players[0].id, playerName: gameState.players[0].name, message: buildPaymentLog(gameState.players[0].name, firstPayment, t, firstBreakdown), type: "payment" }
       : undefined
     onTurnEnd?.({
       gameState,
@@ -430,7 +430,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
               }
             }
           }
-          addLogEntry({ round: gameState.turn, playerId: currentPlayer.id, playerName: currentPlayer.name, message: buildExplosionLog(currentPlayer.name, currentPlayer.id, gameState, stateAfterExplosions), type: "explosion" })
+          addLogEntry({ round: gameState.turn, playerId: currentPlayer.id, playerName: currentPlayer.name, message: buildExplosionLog(currentPlayer.name, currentPlayer.id, gameState, stateAfterExplosions, t), type: "explosion" })
         }, 500)
         return () => clearTimeout(explosionTimer)
       }
@@ -454,11 +454,17 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
           gameMode === "hotseat" ||
           (gameMode === "solo" && currentPlayer.id === "player1") ||
           (gameMode === "multiplayer" && currentPlayer.id === localPlayerId)
-        if (shouldPlayCash) playSFX("bank", 0.7)
+        if (shouldPlayCash) {
+          playSFX("bank", 0.7)
+          const moneySeatIds = gameState.board
+            .filter((pos) => pos.occupiedBy?.playerId === currentPlayer.id)
+            .map((pos) => pos.id)
+          if (moneySeatIds.length > 0) triggerSeatSprite(moneySeatIds, "/images/Sprites/money.png", 1200)
+        }
         // In multiplayer, the incomingSync handler replays this log at the correct position
         // in the action sequence — suppress the local log to avoid ordering issues on P2+
         if (!suppressPaymentLogRef.current) {
-          addLogEntry({ round: gameState.turn, playerId: currentPlayer.id, playerName: currentPlayer.name, message: buildPaymentLog(currentPlayer.name, payment, breakdown), type: "payment" })
+          addLogEntry({ round: gameState.turn, playerId: currentPlayer.id, playerName: currentPlayer.name, message: buildPaymentLog(currentPlayer.name, payment, t, breakdown), type: "payment" })
         }
         suppressPaymentLogRef.current = false
       }
@@ -487,7 +493,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       const standings = sortedPlayers.map((p, i) => ({ player: p.name, money: p.money, aliveGangsters: p.gangsters.filter((g) => g.position !== null).length, rank: i + 1 }))
       setFinalStandings(standings)
       const winner = sortedPlayers[0]
-      addLogEntry({ round: gameState.turn, playerId: winner.id, playerName: winner.name, message: `Game Over — ${winner.name} wins with $${winner.money.toLocaleString()}!`, type: "system" })
+      addLogEntry({ round: gameState.turn, playerId: winner.id, playerName: winner.name, message: t("log.gameover", { name: winner.name, amount: winner.money.toLocaleString() }), type: "system" })
       const winnerType: "HUMAN" | "CPU" = botPlayerIds.includes(winner.id) ? "CPU" : "HUMAN"
       onGameFinished?.(winner.id, winnerType)
     }
@@ -540,7 +546,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       const preFirst = currentState
       currentState = playCard(currentState, botId, firstPlay.cardId)
       currentState = performAction(currentState, firstPlay.action)
-      logEntryData.push({ round: state.turn, playerId: botId, playerName: botPlayer.name, message: buildActionLog(firstPlay.action, preFirst, currentState), type: "action" })
+      logEntryData.push({ round: state.turn, playerId: botId, playerName: botPlayer.name, message: buildActionLog(firstPlay.action, preFirst, currentState, t), type: "action" })
       logs.push(`${botPlayer.name}: ${firstPlay.log}`)
       stateAfterFirstAction = currentState  // snapshot for sequential board update
       const secondPlay = decideBotSecondPlay(currentState, botId)
@@ -550,7 +556,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         const preSecond = currentState
         currentState = playCard(currentState, botId, secondPlay.cardId)
         currentState = performAction(currentState, secondPlay.action)
-        logEntryData.push({ round: state.turn, playerId: botId, playerName: botPlayer.name, message: buildActionLog(secondPlay.action, preSecond, currentState), type: "action" })
+        logEntryData.push({ round: state.turn, playerId: botId, playerName: botPlayer.name, message: buildActionLog(secondPlay.action, preSecond, currentState, t), type: "action" })
         logs.push(`${botPlayer.name} (2nd): ${secondPlay.log}`)
       }
     }
@@ -683,7 +689,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         const botNextBreakdown = calculatePaymentBreakdown(newState.players[nextPlayerIndex], newState.board)
         const botNextPayment = botNextBreakdown.total
         const botPaymentLog: Omit<LogEntry, "id" | "highlighted"> | undefined = botNextPayment > 0
-          ? { round: newState.turn, playerId: newState.players[nextPlayerIndex].id, playerName: newState.players[nextPlayerIndex].name, message: buildPaymentLog(newState.players[nextPlayerIndex].name, botNextPayment, botNextBreakdown), type: "payment" }
+          ? { round: newState.turn, playerId: newState.players[nextPlayerIndex].id, playerName: newState.players[nextPlayerIndex].name, message: buildPaymentLog(newState.players[nextPlayerIndex].name, botNextPayment, t, botNextBreakdown), type: "payment" }
           : undefined
         onTurnEnd?.({ gameState: newState, currentPlayerIndex: nextPlayerIndex, seatingPlayerOrder: [], seatingCurrentIdx: 0, seatingQueue: {}, actions: botSyncActions, paymentLog: botPaymentLog })
       }, longestAnimMs)
@@ -1110,7 +1116,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       round: gameState.turn,
       playerId: currentPlayer.id,
       playerName: currentPlayer.name,
-      message: buildActionLog(action, preActionState, newGameState),
+      message: buildActionLog(action, preActionState, newGameState, t),
       type: "action",
     }
     addLogEntry(actionLogEntry)
@@ -1270,7 +1276,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     const nextBreakdown = calculatePaymentBreakdown(newGameState.players[nextPlayerIndex], newGameState.board)
     const nextPayment = nextBreakdown.total
     const paymentLogEntry: Omit<LogEntry, "id" | "highlighted"> | undefined = nextPayment > 0
-      ? { round: newGameState.turn, playerId: newGameState.players[nextPlayerIndex].id, playerName: newGameState.players[nextPlayerIndex].name, message: buildPaymentLog(newGameState.players[nextPlayerIndex].name, nextPayment, nextBreakdown), type: "payment" }
+      ? { round: newGameState.turn, playerId: newGameState.players[nextPlayerIndex].id, playerName: newGameState.players[nextPlayerIndex].name, message: buildPaymentLog(newGameState.players[nextPlayerIndex].name, nextPayment, t, nextBreakdown), type: "payment" }
       : undefined
 
     // Broadcast state to other clients in multiplayer
