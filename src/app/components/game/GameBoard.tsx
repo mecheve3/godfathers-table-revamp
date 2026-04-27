@@ -454,13 +454,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
           gameMode === "hotseat" ||
           (gameMode === "solo" && currentPlayer.id === "player1") ||
           (gameMode === "multiplayer" && currentPlayer.id === localPlayerId)
-        if (shouldPlayCash) {
-          playSFX("bank", 0.7)
-          const moneySeatIds = gameState.board
-            .filter((pos) => pos.occupiedBy?.playerId === currentPlayer.id)
-            .map((pos) => pos.id)
-          if (moneySeatIds.length > 0) triggerSeatSprite(moneySeatIds, "/images/Sprites/money.png", 1200)
-        }
+        if (shouldPlayCash) playSFX("bank", 0.7)
         // In multiplayer, the incomingSync handler replays this log at the correct position
         // in the action sequence — suppress the local log to avoid ordering issues on P2+
         if (!suppressPaymentLogRef.current) {
