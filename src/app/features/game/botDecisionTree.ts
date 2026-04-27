@@ -47,6 +47,18 @@ function countAllyNeighbors(state: GameState, posId: number, playerId: string): 
   return count
 }
 
+/** Returns true if posId falls within the blast zone (center, left, right) of any active cake. */
+function isInCakeBlast(state: GameState, posId: number): boolean {
+  for (const cake of state.cakes) {
+    const cakePos = state.board.find((p) => p.id === cake.seatId)
+    if (!cakePos) continue
+    if (cake.seatId === posId) return true
+    if (cakePos.leftId === posId) return true
+    if (cakePos.rightId === posId) return true
+  }
+  return false
+}
+
 // ── Individual card decisions ─────────────────────────────────────────────────
 
 function decidePassCake(state: GameState, botId: string): BotPlay | null {
@@ -212,23 +224,37 @@ function decideOrderCake(state: GameState, botId: string): BotPlay | null {
 
   const positions = getValidCakePositions(state)
   let bestPos = -1
-  let bestEnemies = 0
+  let bestScore = -1
 
   for (const posId of positions) {
+    // Never stack a cake on a seat that already has one — it wastes the card
+    if (state.cakes.some((c) => c.seatId === posId)) continue
+    // Never place where own gangsters are in blast range
     if (countOwnInBlast(state, posId, botId) > 0) continue
+
     const enemies = countEnemiesInBlast(state, posId, botId)
-    if (enemies > bestEnemies) {
-      bestEnemies = enemies
+    if (enemies === 0) continue
+
+    // Tie-break: prefer a direct center hit (enemy sits exactly at the cake seat)
+    // so the CPU targets the enemy directly rather than placing adjacently.
+    const centerOccupant = state.board.find((p) => p.id === posId)?.occupiedBy
+    const isDirectHit = !!(centerOccupant && centerOccupant.playerId !== botId)
+    // enemies×2 so a 2-enemy side-hit outranks a 1-enemy direct hit, but equal
+    // enemy counts resolve to the center placement.
+    const score = enemies * 2 + (isDirectHit ? 1 : 0)
+
+    if (score > bestScore) {
+      bestScore = score
       bestPos = posId
     }
   }
 
-  if (bestPos === -1 || bestEnemies === 0) return null
+  if (bestPos === -1) return null
 
   return {
     cardId: card.id,
     action: { type: "ORDER_CAKE", playerId: botId, targetPositionId: bestPos },
-    log: `ORDER_CAKE at seat ${bestPos} (${bestEnemies} potential target${bestEnemies === 1 ? "" : "s"})`,
+    log: `ORDER_CAKE at seat ${bestPos} (score ${bestScore})`,
   }
 }
 
@@ -256,8 +282,49 @@ function decideSleepingPills(state: GameState, botId: string): BotPlay | null {
   }
 }
 
-function getPositionValue(item: string | null, ownedTypes: Set<string>): number {
-  if (item === "CASH_REGISTER") return 5
+/**
+ * Play POLICE_RAID when severely outnumbered on the board or when most of our
+ * gangsters are stuck in cake blast zones with no escape.
+ */
+function decidePoliceRaid(state: GameState, botId: string): BotPlay | null {
+  const player = state.players.find((p) => p.id === botId)
+  if (!player) return null
+  const card = player.hand.find((c) => c.type === "POLICE_RAID")
+  if (!card || !isCardPlayable(state, botId, card.id)) return null
+
+  const botAlive = player.gangsters.filter((g) => g.position !== null).length
+  if (botAlive === 0) return null
+
+  const totalEnemyAlive = state.players
+    .filter((p) => p.id !== botId)
+    .flatMap((p) => p.gangsters)
+    .filter((g) => g.position !== null).length
+
+  const botInBlast = player.gangsters.filter(
+    (g) => g.position !== null && isInCakeBlast(state, g.position),
+  ).length
+
+  // Severely outnumbered: enemies have 2+ more gangsters on the board
+  const severelyOutnumbered = totalEnemyAlive >= botAlive + 2
+  // Desperate: the majority of alive gangsters are trapped in blast zones
+  const trapped = botAlive > 0 && botInBlast >= Math.ceil(botAlive / 2) && botInBlast >= 2
+
+  if (!severelyOutnumbered && !trapped) return null
+
+  return {
+    cardId: card.id,
+    action: { type: "POLICE_RAID", playerId: botId },
+    log: `POLICE_RAID — enemies:${totalEnemyAlive} bot:${botAlive} inBlast:${botInBlast}`,
+  }
+}
+
+/**
+ * Score a seat position for displacement targeting.
+ * aliveCount: number of the bot's gangsters currently on the board —
+ * CASH_REGISTER is much less valuable with only 1 gangster (nothing to multiply).
+ */
+function getPositionValue(item: string | null, ownedTypes: Set<string>, aliveCount: number): number {
+  if (item === "CASH_REGISTER") return aliveCount <= 1 ? 1 : 5
   if (item && ownedTypes.has(item)) return 4
   if (item && ["BAR", "GAMBLING_HOUSE", "STRIP_CLUB"].includes(item)) return 3
   if (item === "GUN") return 2
@@ -276,6 +343,8 @@ function decideDisplacement(state: GameState, botId: string): BotPlay | null {
   const emptyPositions = getValidDisplacementPositions(state)
   if (emptyPositions.length === 0) return null
 
+  const aliveCount = player.gangsters.filter((g) => g.position !== null).length
+
   const businessItems = ["BAR", "GAMBLING_HOUSE", "STRIP_CLUB"]
   const ownedTypes = new Set<string>()
   for (const g of player.gangsters) {
@@ -284,38 +353,43 @@ function decideDisplacement(state: GameState, botId: string): BotPlay | null {
     if (pos?.item && businessItems.includes(pos.item)) ownedTypes.add(pos.item)
   }
 
-  // Find the best (gangsterIdx, targetId) pair — maximize target value
-  type Candidate = { gIdx: number; targetId: number; targetValue: number; currentValue: number }
+  type Candidate = { gIdx: number; targetId: number; gain: number; label: string }
   const candidates: Candidate[] = []
 
   for (const gIdx of validGangsters) {
     const gangster = player.gangsters[gIdx]
     if (!gangster?.position) continue
+
     const currentPos = state.board.find((p) => p.id === gangster.position)
-    const currentValue = getPositionValue(currentPos?.item ?? null, ownedTypes)
+    const currentInBlast = isInCakeBlast(state, gangster.position)
+    // If the gangster is already in a blast zone treat its current position as
+    // deeply negative so ANY safe move scores as an improvement.
+    const currentValue = currentInBlast
+      ? -10
+      : getPositionValue(currentPos?.item ?? null, ownedTypes, aliveCount)
 
     for (const targetId of emptyPositions) {
+      // Never move into a blast zone — it's always a mistake
+      if (isInCakeBlast(state, targetId)) continue
+
       const targetPos = state.board.find((p) => p.id === targetId)
-      const targetValue = getPositionValue(targetPos?.item ?? null, ownedTypes)
-      candidates.push({ gIdx, targetId, targetValue, currentValue })
+      const targetValue = getPositionValue(targetPos?.item ?? null, ownedTypes, aliveCount)
+      const gain = targetValue - currentValue
+
+      // Only consider moves that strictly improve (prevents no-ops, same-type swaps,
+      // and zig-zagging between seats of equal value)
+      if (gain <= 0) continue
+
+      const label = targetPos?.item ? `${targetPos.item} (seat ${targetId})` : `seat ${targetId}`
+      candidates.push({ gIdx, targetId, gain, label })
     }
   }
 
-  // Sort by target value desc, then prefer candidates that improve on current value
-  candidates.sort((a, b) => {
-    if (b.targetValue !== a.targetValue) return b.targetValue - a.targetValue
-    // Same target value — prefer one with the biggest improvement
-    return (b.targetValue - b.currentValue) - (a.targetValue - a.currentValue)
-  })
+  if (candidates.length === 0) return null
 
-  // Pick first candidate that actually improves position, or else the highest-value target
-  const improving = candidates.find((c) => c.targetValue > c.currentValue)
-  const best = improving ?? candidates[0]
-
-  if (!best) return null
-
-  const targetPos = state.board.find((p) => p.id === best.targetId)
-  const label = targetPos?.item ? `${targetPos.item} (seat ${best.targetId})` : `seat ${best.targetId}`
+  // Pick the move with the highest gain
+  candidates.sort((a, b) => b.gain - a.gain)
+  const best = candidates[0]
 
   return {
     cardId: card.id,
@@ -325,7 +399,7 @@ function decideDisplacement(state: GameState, botId: string): BotPlay | null {
       gangsterId: best.gIdx,
       targetPositionId: best.targetId,
     },
-    log: `DISPLACEMENT → ${label}`,
+    log: `DISPLACEMENT → ${best.label} (gain ${best.gain})`,
   }
 }
 
@@ -340,6 +414,7 @@ export function decideBotFirstPlay(state: GameState, botId: string): BotPlay | n
     decideKnife(state, botId) ??
     decideOrderCake(state, botId) ??
     decideSleepingPills(state, botId) ??
+    decidePoliceRaid(state, botId) ??
     decideDisplacement(state, botId)
   )
 }
@@ -368,13 +443,12 @@ function scorePlacement(
 ): number {
   let score = 0
 
-  // ── Base seat value from strategic item ───────────────────────────────────
   if (seat.item === "CASH_REGISTER") {
     score += 100
   } else if (seat.item && ownedTypes.has(seat.item)) {
-    score += 85 // Completes or extends a monopoly
+    score += 85
   } else if (seat.item && SEATING_BUSINESS_ITEMS.includes(seat.item)) {
-    score += 60 // New income source
+    score += 60
   } else if (seat.item === "GUN") {
     score += 30
   } else if (seat.item === "KNIFE") {
@@ -383,49 +457,37 @@ function scorePlacement(
     score += 5
   }
 
-  // ── Drink penalty (sleeping-pills risk) ───────────────────────────────────
-  // Applied on top of the item value so GUN+DRINK seats still score lower than plain GUN seats
   if ((DRINK_SEAT_IDS as readonly number[]).includes(seat.id)) {
     score -= 45
   }
 
-  // ── Corner penalty (no frontId — tactically weaker) ──────────────────────
   if (CORNER_SEAT_IDS.includes(seat.id)) {
     score -= 12
   }
 
-  // ── Gangster-type × seat synergy ─────────────────────────────────────────
   switch (gangsterType) {
     case "GODFATHER":
-      // Protect godfather: extra penalties for risky seats
       if ((DRINK_SEAT_IDS as readonly number[]).includes(seat.id)) score -= 35
       if (CORNER_SEAT_IDS.includes(seat.id)) score -= 18
-      // Weapon seats expose godfather to retaliation — slight penalty
       if (seat.item === "GUN") score -= 12
       if (seat.item === "KNIFE") score -= 12
-      // Income seats are safe and valuable
       if (seat.item === "CASH_REGISTER") score += 15
       if (seat.item && SEATING_BUSINESS_ITEMS.includes(seat.item)) score += 10
       break
 
     case "GUNMAN":
-      // GUNMAN can already fire from any seat — GUN seat wastes a strategic position
       if (seat.item === "GUN") score -= 20
-      // Place gunmen at income seats or knife seats (enables knife use without waste)
       if (seat.item === "KNIFE") score += 10
       if (seat.item && SEATING_BUSINESS_ITEMS.includes(seat.item)) score += 8
       break
 
     case "BLADESLINGER":
-      // BLADESLINGER can already knife from any seat — KNIFE seat is wasted on them
       if (seat.item === "KNIFE") score -= 15
-      // Bladeslinger at GUN seat gains shooting ability (non-obvious value)
       if (seat.item === "GUN") score += 18
       if (seat.item && SEATING_BUSINESS_ITEMS.includes(seat.item)) score += 8
       break
 
     case "THUG":
-      // THUG needs weapon seats to be offensively useful
       if (seat.item === "GUN") score += 28
       if (seat.item === "KNIFE") score += 22
       if (seat.item && SEATING_BUSINESS_ITEMS.includes(seat.item)) score += 5
@@ -437,7 +499,7 @@ function scorePlacement(
 
 /**
  * Decide the best (gangsterId, seatId) pair for a bot during manual/raid seating.
- * Greedy: scores every combination and returns the highest.
+ * Blast-zone seats are avoided — the bot only uses them when no safe seats remain.
  */
 export function decideBotSeating(
   state: GameState,
@@ -448,7 +510,20 @@ export function decideBotSeating(
   const player = state.players.find((p) => p.id === botId)
   if (!player || gangsterIdsToPlace.length === 0 || availableSeatIds.length === 0) return null
 
-  // Businesses the bot already partially controls (for monopoly targeting)
+  // Pre-compute all seats currently in a cake blast zone
+  const blastSeatIds = new Set<number>()
+  for (const cake of state.cakes) {
+    const cakePos = state.board.find((p) => p.id === cake.seatId)
+    if (!cakePos) continue
+    blastSeatIds.add(cake.seatId)
+    if (cakePos.leftId != null) blastSeatIds.add(cakePos.leftId)
+    if (cakePos.rightId != null) blastSeatIds.add(cakePos.rightId)
+  }
+
+  // Prefer seats outside blast zones; fall back to all seats only when necessary
+  const safeSeats = availableSeatIds.filter((id) => !blastSeatIds.has(id))
+  const seatsToScore = safeSeats.length > 0 ? safeSeats : availableSeatIds
+
   const ownedTypes = new Set<string>()
   for (const g of player.gangsters) {
     if (g.position === null) continue
@@ -464,7 +539,7 @@ export function decideBotSeating(
     const gangster = player.gangsters.find((g) => g.id === gangsterId)
     if (!gangster) continue
 
-    for (const seatId of availableSeatIds) {
+    for (const seatId of seatsToScore) {
       const seat = state.board.find((p) => p.id === seatId)
       if (!seat) continue
 
