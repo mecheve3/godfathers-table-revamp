@@ -295,17 +295,21 @@ function decidePoliceRaid(state: GameState, botId: string): BotPlay | null {
   const botAlive = player.gangsters.filter((g) => g.position !== null).length
   if (botAlive === 0) return null
 
-  const totalEnemyAlive = state.players
-    .filter((p) => p.id !== botId)
-    .flatMap((p) => p.gangsters)
-    .filter((g) => g.position !== null).length
+  // Compare against the strongest single enemy team, not the sum of all enemies.
+  // Sum comparison always triggers in multi-player games (8 enemies vs 4 bots in 3p).
+  const maxEnemyGroupAlive = Math.max(
+    0,
+    ...state.players
+      .filter((p) => p.id !== botId)
+      .map((p) => p.gangsters.filter((g) => g.position !== null).length),
+  )
 
   const botInBlast = player.gangsters.filter(
     (g) => g.position !== null && isInCakeBlast(state, g.position),
   ).length
 
-  // Severely outnumbered: enemies have 2+ more gangsters on the board
-  const severelyOutnumbered = totalEnemyAlive >= botAlive + 2
+  // Severely outnumbered: the strongest single enemy team has 2+ more gangsters
+  const severelyOutnumbered = maxEnemyGroupAlive >= botAlive + 2
   // Desperate: the majority of alive gangsters are trapped in blast zones
   const trapped = botAlive > 0 && botInBlast >= Math.ceil(botAlive / 2) && botInBlast >= 2
 
@@ -314,7 +318,7 @@ function decidePoliceRaid(state: GameState, botId: string): BotPlay | null {
   return {
     cardId: card.id,
     action: { type: "POLICE_RAID", playerId: botId },
-    log: `POLICE_RAID — enemies:${totalEnemyAlive} bot:${botAlive} inBlast:${botInBlast}`,
+    log: `POLICE_RAID — strongestEnemy:${maxEnemyGroupAlive} bot:${botAlive} inBlast:${botInBlast}`,
   }
 }
 

@@ -451,8 +451,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         updatedPlayers[currentPlayerIndex] = { ...currentPlayer, money: currentPlayer.money + payment }
         setGameState({ ...gameState, players: updatedPlayers, bankMoney: Math.max(0, gameState.bankMoney - payment) })
         const shouldPlayCash =
-          gameMode === "hotseat" ||
-          (gameMode === "solo" && currentPlayer.id === "player1") ||
+          ((gameMode === "hotseat" || gameMode === "solo") && currentPlayer.id === "player1") ||
           (gameMode === "multiplayer" && currentPlayer.id === localPlayerId)
         if (shouldPlayCash) {
           playSFX("bank", 0.7)
@@ -515,7 +514,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     return (fromIdx + 1) % total
   }
 
-  const executeSingleBotTurn = (state: GameState, playerIndex: number): { newState: GameState; nextPlayerIndex: number; logs: string[]; actionSummaries: ActionSummary[]; logEntryData: Omit<LogEntry, "id" | "highlighted">[]; playedCards: Array<{ cardType: string; playerId: string }>; stateAfterFirstAction: GameState | null } => {
+  const executeSingleBotTurn = (state: GameState, playerIndex: number): { newState: GameState; nextPlayerIndex: number; logs: string[]; actionSummaries: ActionSummary[]; logEntryData: Omit<LogEntry, "id" | "highlighted">[]; playedCards: Array<{ cardType: string; playerId: string }>; stateAfterFirstAction: GameState | null; policeRaidPlayed: boolean } => {
     const logs: string[] = []
     const actionSummaries: ActionSummary[] = []
     const logEntryData: Omit<LogEntry, "id" | "highlighted">[] = []
@@ -561,13 +560,19 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       }
     }
 
+    const policeRaidPlayed = firstPlay?.action.type === "POLICE_RAID"
+
     let finalState = wakeUpSleepingGangsters(currentState, botId)
     finalState = dealCards(finalState)
     const nextPlayerIndex = getNextActivePlayerIndex(playerIndex, finalState.players)
-    if (nextPlayerIndex <= playerIndex) finalState.turn += 1
-    finalState.currentPhase = "SELECT_CARD"
+    if (!policeRaidPlayed) {
+      if (nextPlayerIndex <= playerIndex) finalState.turn += 1
+      finalState.currentPhase = "SELECT_CARD"
+    }
+    // When POLICE_RAID was played, preserve "SEATING_SELECT_GANGSTER" phase so
+    // the bot-seating useEffect can handle re-seating all players.
     finalState.selectedCakeId = undefined
-    return { newState: finalState, nextPlayerIndex, logs, actionSummaries, logEntryData, playedCards, stateAfterFirstAction }
+    return { newState: finalState, nextPlayerIndex, logs, actionSummaries, logEntryData, playedCards, stateAfterFirstAction, policeRaidPlayed }
   }
 
   useEffect(() => {
@@ -582,7 +587,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     const timer = setTimeout(() => {
       const latestState = gameStateRef.current
       if (latestState.currentPhase !== "SELECT_CARD") return
-      const { newState, nextPlayerIndex, logs, actionSummaries, logEntryData, playedCards, stateAfterFirstAction } = executeSingleBotTurn(latestState, currentPlayerIndex)
+      const { newState, nextPlayerIndex, logs, actionSummaries, logEntryData, playedCards, stateAfterFirstAction, policeRaidPlayed } = executeSingleBotTurn(latestState, currentPlayerIndex)
 
       // Timing constants
       const ACTION_STAGGER = 2800    // ms between each action's visual effects
@@ -660,21 +665,12 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         : 0
 
       setTimeout(() => {
-        // Compute newly dealt cards for the next (human) player before updating state
-        const prevHandIds = new Set(gameStateRef.current.players[nextPlayerIndex].hand.map((c) => c.id))
         setActiveBotPlayerId(null)
-        setCurrentPlayerIndex(nextPlayerIndex)
-        setGameState(newState)
         setSelectedCardId(null); setSelectedGangsterIndex(null); setSelectedDirection(null); setTargetPositionId(null)
         setValidGangsters([]); setValidTargets([]); setValidCakes([]); setValidDirections([])
         setPillsApplied(0); setPendingPillTargetIds([]); setValidPillTargets([])
         setSecondActionTaken(false)
-        const newIds = newState.players[nextPlayerIndex].hand.filter((c) => !prevHandIds.has(c.id)).map((c) => c.id)
-        if (newIds.length > 0) {
-          setNewlyDealtCardIds(newIds)
-          setTimeout(() => setNewlyDealtCardIds([]), 2500)
-        }
-        // Broadcast bot turn result (with action feedback) to other clients
+
         const botSyncActions: SyncAction[] = logEntryData.map((le, i) => ({
           playerId: le.playerId,
           cardType: playedCards[i]?.cardType ?? '',
@@ -686,6 +682,30 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
             ? { name: actionSummaries[i].soundName, vol: actionSummaries[i].soundName === "explodecake" ? 0.3 : 0.7, delayMs: actionSummaries[i].soundDelay }
             : undefined,
         }))
+
+        if (policeRaidPlayed) {
+          // Bot played POLICE_RAID — enter re-seating flow instead of advancing turns.
+          // All gangster positions are cleared; phase is "SEATING_SELECT_GANGSTER".
+          const order = newState.players.map((p) => p.id)
+          const rotated = [...order.slice(currentPlayerIndex), ...order.slice(0, currentPlayerIndex)]
+          const queue: Record<string, string[]> = {}
+          for (const p of newState.players) queue[p.id] = p.gangsters.map((g) => g.id)
+          setSeatingPlayerOrder(rotated); setSeatingCurrentIdx(0); setSeatingQueue(queue)
+          setSeatingSelectedGangsterId(null); setIsInitialSeating(false)
+          setGameState(newState)
+          onTurnEnd?.({ gameState: newState, currentPlayerIndex, seatingPlayerOrder: rotated, seatingCurrentIdx: 0, seatingQueue: queue, actions: botSyncActions, isInitialSeating: false })
+          return
+        }
+
+        // Normal turn advancement
+        const prevHandIds = new Set(gameStateRef.current.players[nextPlayerIndex].hand.map((c) => c.id))
+        setCurrentPlayerIndex(nextPlayerIndex)
+        setGameState(newState)
+        const newIds = newState.players[nextPlayerIndex].hand.filter((c) => !prevHandIds.has(c.id)).map((c) => c.id)
+        if (newIds.length > 0) {
+          setNewlyDealtCardIds(newIds)
+          setTimeout(() => setNewlyDealtCardIds([]), 2500)
+        }
         const botNextBreakdown = calculatePaymentBreakdown(newState.players[nextPlayerIndex], newState.board)
         const botNextPayment = botNextBreakdown.total
         const botPaymentLog: Omit<LogEntry, "id" | "highlighted"> | undefined = botNextPayment > 0
