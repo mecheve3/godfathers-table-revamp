@@ -118,7 +118,7 @@ export default function BoardPosition({ position, gameState, selected, highlight
   return (
     <>
       <div
-        className={`absolute w-10 h-10 md:w-14 md:h-14 rounded-full overflow-hidden flex items-center justify-center cursor-pointer border-2 border-gray-300
+        className={`absolute w-[3.75rem] h-[3.75rem] md:w-[5.25rem] md:h-[5.25rem] rounded-full overflow-hidden flex items-center justify-center cursor-pointer border-2 border-gray-300
           ${pillSelected ? "ring-4 ring-purple-400" : ""}
           ${selected ? "ring-4 ring-white" : ""}
           ${highlighted ? "ring-4 ring-yellow-400 animate-pulse" : ""}

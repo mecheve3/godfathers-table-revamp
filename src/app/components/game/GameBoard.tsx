@@ -455,9 +455,14 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
           (gameMode === "multiplayer" && currentPlayer.id === localPlayerId)
         if (shouldPlayCash) {
           playSFX("bank", 0.7)
-          const moneySeatIds = gameState.board
-            .filter((pos) => pos.occupiedBy?.playerId === currentPlayer.id)
-            .map((pos) => pos.id)
+          const INCOME_ITEMS = new Set(["BAR", "GAMBLING_HOUSE", "STRIP_CLUB", "CASH_REGISTER"])
+          const moneySeatIds = gameState.board.filter((pos) => {
+            if (pos.occupiedBy?.playerId !== currentPlayer.id) return false
+            const gangster = currentPlayer.gangsters.find((g) => g.id === pos.occupiedBy?.gangsterId)
+            if (!gangster || gangster.status === "sleeping") return false
+            // Business / cash-register seat, or the Godfather (generates income from any seat)
+            return (pos.item && INCOME_ITEMS.has(pos.item)) || gangster.type === "GODFATHER"
+          }).map((pos) => pos.id)
           if (moneySeatIds.length > 0) triggerSeatSprite(moneySeatIds, "/images/Sprites/money.png", 1200)
         }
         // In multiplayer, the incomingSync handler replays this log at the correct position
