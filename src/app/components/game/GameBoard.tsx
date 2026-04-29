@@ -510,6 +510,22 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     }
   }
 
+  const handleWrapUp = () => {
+    playSFX("bell", 0.8, 0, "flac")
+    const sortedPlayers = [...gameState.players].sort((a, b) => b.money - a.money)
+    if (sortedPlayers.length > 1 && sortedPlayers[0].money === sortedPlayers[1].money) {
+      const tiedPlayers = sortedPlayers.filter((p) => p.money === sortedPlayers[0].money)
+      tiedPlayers.sort((a, b) => b.gangsters.filter((g) => g.position !== null).length - a.gangsters.filter((g) => g.position !== null).length)
+      sortedPlayers.splice(0, tiedPlayers.length, ...tiedPlayers)
+    }
+    const standings = sortedPlayers.map((p, i) => ({ player: p.name, money: p.money, aliveGangsters: p.gangsters.filter((g) => g.position !== null).length, rank: i + 1 }))
+    setFinalStandings(standings)
+    setGameOver(true)
+    const winner = sortedPlayers[0]
+    addLogEntry({ round: gameState.turn, playerId: winner.id, playerName: winner.name, message: t("log.gameover", { name: winner.name, amount: winner.money.toLocaleString() }), type: "system" })
+    onGameFinished?.(winner.id, botPlayerIds.includes(winner.id) ? "CPU" : "HUMAN")
+  }
+
   const getNextActivePlayerIndex = (fromIdx: number, players: typeof gameState.players): number => {
     const total = players.length
     for (let i = 1; i <= total; i++) {
@@ -1333,6 +1349,14 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   const selectedCard = selectedCardId ? gameState.players[currentPlayerIndex].hand.find((c) => c.id === selectedCardId) || null : null
   const selectedCake = gameState.selectedCakeId ? gameState.cakes.find((c) => c.id === gameState.selectedCakeId) || null : null
 
+  // Show wrap-up banner when human player's entire crew is eliminated but game continues
+  const humanPlayerId = localPlayerIndex !== undefined ? `player${localPlayerIndex + 1}` : gameMode === "solo" ? "player1" : null
+  const humanPlayer = humanPlayerId ? gameState.players.find((p) => p.id === humanPlayerId) ?? null : null
+  const showWrapUp = !gameOver
+    && humanPlayer !== null
+    && humanPlayer.gangsters.every((g) => g.position === null)
+    && !["SEATING_SELECT_GANGSTER", "SEATING_SELECT_SEAT", "SEATING_CONFIRM"].includes(gameState.currentPhase)
+
   // Displacement preview: when confirming a displacement, hide the gangster from the source
   // seat and show a blinking preview at the destination seat
   const TEAM_FOR_PLAYER: Record<string, string> = { player1: 'red', player2: 'blue', player3: 'yellow', player4: 'green', player5: 'orange', player6: 'purple' }
@@ -1360,6 +1384,22 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     <div className="h-screen overflow-hidden flex flex-col bg-gradient-to-b from-[#2B1710] to-[#3D2314]">
       {policeRaidActive && (
         <div className="fixed inset-0 pointer-events-none police-raid-overlay" style={{ background: "linear-gradient(135deg, rgba(239,68,68,0.35), rgba(59,130,246,0.35))", zIndex: 9999 }} />
+      )}
+
+      {/* Wrap-up banner — shown when human crew is fully eliminated but game is still running */}
+      {showWrapUp && (
+        <div className="fixed bottom-6 right-6 z-50 max-w-xs bg-zinc-900/95 border border-zinc-600 rounded-lg p-4 shadow-2xl flex flex-col gap-3">
+          <div>
+            <p className="text-[#F5AC0E] font-bold text-sm leading-snug">{t("game.wrapup.title")}</p>
+            <p className="text-zinc-400 text-xs mt-1 leading-snug">{t("game.wrapup.body")}</p>
+          </div>
+          <button
+            onClick={handleWrapUp}
+            className="w-full bg-[#F5AC0E] text-[#2B1710] font-bold text-sm py-2 rounded hover:bg-[#F5AC0E]/80 transition-colors"
+          >
+            {t("game.wrapup.btn")}
+          </button>
+        </div>
       )}
 
       {/* ── Final Results Modal ──────────────────────────────────────────────── */}

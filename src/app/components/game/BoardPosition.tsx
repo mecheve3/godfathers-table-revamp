@@ -155,7 +155,7 @@ export default function BoardPosition({
             src={gangsterDetails.imageSrc}
             alt={gangsterDetails.type}
             className={`w-full h-full object-contain pointer-events-none select-none
-              ${isSleeping ? "opacity-50 saturate-0" : ""}`}
+              ${isSleeping ? "opacity-50 saturate-50" : ""}`}
             style={glowFilter ? { filter: glowFilter } : undefined}
             draggable={false}
           />
@@ -178,9 +178,13 @@ export default function BoardPosition({
           />
         )}
 
-        {/* Empty seat — minimal dot, brightens on hover */}
+        {/* Empty seat — dot that grows into a visible ring when highlighted */}
         {effectivelyEmpty && !previewGangster && (
-          <div className="w-2 h-2 rounded-full border border-zinc-400/40 opacity-25 group-hover:opacity-60 transition-opacity" />
+          <div className={`rounded-full transition-all duration-150
+            ${highlighted
+              ? "w-7 h-7 md:w-9 md:h-9 border-2 border-yellow-400 bg-yellow-400/15 opacity-100"
+              : "w-2 h-2 border border-zinc-400/40 opacity-25 group-hover:opacity-60"}`}
+          />
         )}
       </div>
 

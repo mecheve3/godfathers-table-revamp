@@ -16,7 +16,7 @@
   "setup.next": "Next",
   "setup.seating": "Seating Arrangement",
   "setup.seating.preset": "Preset",
-  "setup.seating.preset.sub": "Fixed positions",
+  "setup.seating.preset.sub": "Preset positions",
   "setup.seating.manual": "Manual",
   "setup.seating.manual.sub": "Choose your seat",
   "setup.name": "Your Name",
@@ -197,6 +197,9 @@
   "game.seating.confirm": "Confirm placement?",
   "game.seating.confirm.hint": "Place the gangster in the selected seat",
   "game.bot_log": "Bot Log ({{count}})",
+  "game.wrapup.btn": "Wrap Up",
+  "game.wrapup.title": "Your crew has been wiped out",
+  "game.wrapup.body": "Skip to the final results — you can still win if you've collected more money than anyone else.",
 
   "game.abandoned.restart": "{{name}} restarted the game",
   "game.abandoned.left": "{{name}} left the game",

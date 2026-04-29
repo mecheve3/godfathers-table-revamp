@@ -16,7 +16,7 @@
   "setup.next": "Siguiente",
   "setup.seating": "Disposición de asientos",
   "setup.seating.preset": "Predefinido",
-  "setup.seating.preset.sub": "Posiciones fijas",
+  "setup.seating.preset.sub": "Posiciones predefinidas",
   "setup.seating.manual": "Manual",
   "setup.seating.manual.sub": "Elige tu asiento",
   "setup.name": "Tu nombre",
@@ -197,6 +197,9 @@
   "game.seating.confirm": "¿Confirmar ubicación?",
   "game.seating.confirm.hint": "Coloca el gángster en el asiento seleccionado",
   "game.bot_log": "Log del bot ({{count}})",
+  "game.wrapup.btn": "Terminar",
+  "game.wrapup.title": "Tu banda ha sido eliminada",
+  "game.wrapup.body": "Salta a los resultados finales — aún puedes ganar si has recaudado más dinero que los demás.",
 
   "game.abandoned.restart": "{{name}} reinició el juego",
   "game.abandoned.left": "{{name}} abandonó el juego",

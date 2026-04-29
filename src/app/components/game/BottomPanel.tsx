@@ -151,10 +151,10 @@ export default function BottomPanel({
 
           <div className="space-y-2">
             {(gamePhase === "SELECT_GANGSTER" || gamePhase === "SELECT_CAKE") && (
-              <Btn onClick={onCancelAction} variant="secondary">{t("btn.cancel")}</Btn>
+              <Btn onClick={onCancelAction} variant="secondary" wide>{t("btn.cancel")}</Btn>
             )}
             {gamePhase === "SELECT_TARGET" && (selectedCard?.type === "KNIFE" || selectedCard?.type === "ORDER_CAKE") && (
-              <Btn onClick={onCancelAction} variant="secondary">{t("btn.cancel")}</Btn>
+              <Btn onClick={onCancelAction} variant="secondary" wide>{t("btn.cancel")}</Btn>
             )}
             {gamePhase === "SELECT_TARGET" && selectedCard?.type === "GUN" && (
               <div className="grid grid-cols-1 gap-2">
@@ -175,7 +175,7 @@ export default function BottomPanel({
               </div>
             )}
             {gamePhase === "SELECT_DISCARD" && !selectedCardId && (
-              <Btn onClick={onCancelAction} variant="secondary">{t("btn.cancel")}</Btn>
+              <Btn onClick={onCancelAction} variant="secondary" wide>{t("btn.cancel")}</Btn>
             )}
             {gamePhase === "SELECT_DISCARD" && selectedCardId && (
               <div className="grid grid-cols-2 gap-2">
@@ -184,7 +184,7 @@ export default function BottomPanel({
               </div>
             )}
             {gamePhase === "SELECT_PILL_TARGET_1" && (
-              <Btn onClick={onCancelAction} variant="secondary">{t("btn.cancel")}</Btn>
+              <Btn onClick={onCancelAction} variant="secondary" wide>{t("btn.cancel")}</Btn>
             )}
             {(gamePhase === "SELECT_PILL_TARGET_2" || gamePhase === "SELECT_PILL_TARGET_3") && (
               <div className="grid grid-cols-2 gap-2">
