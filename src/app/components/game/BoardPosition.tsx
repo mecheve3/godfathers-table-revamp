@@ -21,7 +21,7 @@ interface BoardPositionProps {
   hideOccupant?: boolean
   /** Show a blinking preview gangster here (displacement destination during confirm) */
   previewGangster?: { imageSrc: string; playerId: string } | null
-  /** Show a purple ring — gangster already selected as a sleeping-pill target */
+  /** Show a purple glow — gangster already selected as a sleeping-pill target */
   pillSelected?: boolean
 }
 
@@ -89,12 +89,14 @@ const getGangsterTypeName = (type: GangsterType) => {
 const getGangsterImage = (playerId: string, type: GangsterType) =>
   `/images/players/${getTeam(playerId)}/${getGangsterTypeName(type)}.png`
 
-export default function BoardPosition({ position, gameState, selected, highlighted, onClick, animClass, spriteOverlay, spriteLarge, onCakeClick, draggable, onDragStart, onDragOver, onDrop, hideOccupant, previewGangster, pillSelected }: BoardPositionProps) {
+export default function BoardPosition({
+  position, gameState, selected, highlighted, onClick, animClass, spriteOverlay, spriteLarge,
+  onCakeClick, draggable, onDragStart, onDragOver, onDrop, hideOccupant, previewGangster, pillSelected,
+}: BoardPositionProps) {
   const [cakes, setCakes] = useState<typeof gameState.cakes>([])
   const style = getPositionStyle(position.id)
 
   const occupiedBy = position.occupiedBy
-  const gangsterColor = occupiedBy ? getTeam(occupiedBy.playerId) : ""
 
   useEffect(() => {
     setCakes(gameState.cakes.filter((cake) => cake.seatId === position.id))
@@ -115,24 +117,30 @@ export default function BoardPosition({ position, gameState, selected, highlight
 
   const effectivelyEmpty = !occupiedBy || hideOccupant
 
+  // Drop-shadow glows follow the PNG silhouette — no clipping mask needed.
+  const glowFilter = pillSelected
+    ? "drop-shadow(0 0 6px rgba(192,132,252,1)) drop-shadow(0 0 12px rgba(192,132,252,0.6))"
+    : selected
+    ? "drop-shadow(0 0 8px rgba(255,255,255,1)) drop-shadow(0 0 16px rgba(255,255,255,0.6))"
+    : highlighted
+    ? "drop-shadow(0 0 10px rgba(250,204,21,1)) drop-shadow(0 0 20px rgba(250,204,21,0.5))"
+    : undefined
+
   return (
     <>
+      {/* Invisible hit-area anchored at the seat point. No circle, no background. */}
       <div
-        className={`absolute w-[3.75rem] h-[3.75rem] md:w-[5.25rem] md:h-[5.25rem] rounded-full overflow-hidden flex items-center justify-center cursor-pointer border-2 border-gray-300
-          ${pillSelected ? "ring-4 ring-purple-400" : ""}
-          ${selected ? "ring-4 ring-white" : ""}
-          ${highlighted ? "ring-4 ring-yellow-400 animate-pulse" : ""}
-          ${animClass ?? ""}
-          ${!effectivelyEmpty ? gangsterColor : "bg-zinc-800/80 hover:bg-zinc-700/90"}`}
+        className={`group absolute w-[3.75rem] h-[3.75rem] md:w-[5.25rem] md:h-[5.25rem] flex items-center justify-center cursor-pointer
+          ${highlighted ? "animate-pulse" : ""}
+          ${animClass ?? ""}`}
         style={style}
         onClick={onClick}
         draggable={draggable}
         onDragStart={onDragStart ? (e) => {
           e.dataTransfer.effectAllowed = "move"
-          // Clone the seat circle into an offscreen element so the drag image is fully opaque
           const el = e.currentTarget
           const clone = el.cloneNode(true) as HTMLElement
-          clone.style.cssText = `position:fixed;top:-9999px;left:-9999px;width:${el.offsetWidth}px;height:${el.offsetHeight}px;opacity:1;border-radius:50%;overflow:hidden;`
+          clone.style.cssText = `position:fixed;top:-9999px;left:-9999px;width:${el.offsetWidth}px;height:${el.offsetHeight}px;opacity:1;`
           document.body.appendChild(clone)
           e.dataTransfer.setDragImage(clone, el.offsetWidth / 2, el.offsetHeight / 2)
           requestAnimationFrame(() => document.body.removeChild(clone))
@@ -141,30 +149,42 @@ export default function BoardPosition({ position, gameState, selected, highlight
         onDragOver={onDragOver}
         onDrop={onDrop ? (e) => { e.preventDefault(); onDrop() } : undefined}
       >
+        {/* Gangster PNG — renders freeform without a circular clip */}
         {gangsterDetails && !hideOccupant && (
           <img
             src={gangsterDetails.imageSrc}
             alt={gangsterDetails.type}
-            className={`w-full h-full object-contain ${isSleeping ? "opacity-70" : ""}`}
+            className={`w-full h-full object-contain pointer-events-none select-none
+              ${isSleeping ? "opacity-50 saturate-0" : ""}`}
+            style={glowFilter ? { filter: glowFilter } : undefined}
+            draggable={false}
           />
         )}
+
+        {/* Sleeping Zzz badge */}
         {isSleeping && !hideOccupant && (
-          <div className="absolute inset-0 flex items-center justify-center bg-blue-900/50 rounded-full pointer-events-none">
-            <span className="text-sm font-black text-blue-100 leading-none zzz-blink drop-shadow-lg">Zzz</span>
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <span className="text-sm font-black text-blue-200 leading-none zzz-blink drop-shadow-lg select-none">Zzz</span>
           </div>
         )}
+
+        {/* Displacement preview */}
         {previewGangster && (
           <img
             src={previewGangster.imageSrc}
             alt="preview"
-            className="w-full h-full object-contain displacement-preview-blink"
+            className="w-full h-full object-contain displacement-preview-blink pointer-events-none select-none"
             draggable={false}
           />
         )}
+
+        {/* Empty seat — minimal dot, brightens on hover */}
+        {effectivelyEmpty && !previewGangster && (
+          <div className="w-2 h-2 rounded-full border border-zinc-400/40 opacity-25 group-hover:opacity-60 transition-opacity" />
+        )}
       </div>
 
-      {/* Sprite overlay — rendered as a sibling OUTSIDE the overflow:hidden seat circle
-          so the scale animation is never clipped. Same positional anchor as the seat. */}
+      {/* Sprite overlay — sibling outside the hit-area so it's never clipped */}
       {spriteOverlay && (
         <div
           className={`absolute pointer-events-none flex items-center justify-center ${spriteLarge ? "w-32 h-32 md:w-36 md:h-36" : "w-20 h-20 md:w-24 md:h-24"}`}
@@ -179,6 +199,7 @@ export default function BoardPosition({ position, gameState, selected, highlight
         </div>
       )}
 
+      {/* Cake bombs */}
       {cakes.map((cake, index) => (
         <div
           key={cake.id}
