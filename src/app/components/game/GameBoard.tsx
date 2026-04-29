@@ -694,7 +694,11 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
           const order = newState.players.map((p) => p.id)
           const rotated = [...order.slice(currentPlayerIndex), ...order.slice(0, currentPlayerIndex)]
           const queue: Record<string, string[]> = {}
-          for (const p of newState.players) queue[p.id] = p.gangsters.map((g) => g.id)
+          // Build queue from the pre-raid state so only on-board gangsters are re-seated,
+          // not previously eliminated ones (both have position===null after the raid).
+          for (const p of latestState.players) {
+            queue[p.id] = p.gangsters.filter((g) => g.position !== null).map((g) => g.id)
+          }
           setSeatingPlayerOrder(rotated); setSeatingCurrentIdx(0); setSeatingQueue(queue)
           setSeatingSelectedGangsterId(null); setIsInitialSeating(false)
           setGameState(newState)
