@@ -328,8 +328,10 @@ function decidePoliceRaid(state: GameState, botId: string): BotPlay | null {
  * CASH_REGISTER is much less valuable with only 1 gangster (nothing to multiply).
  */
 function getPositionValue(item: string | null, ownedTypes: Set<string>, aliveCount: number): number {
+  // Monopoly (same business type already owned) is always the best displacement move —
+  // it doubles the income from that business type, outperforming any cash register.
+  if (item && ownedTypes.has(item)) return 7
   if (item === "CASH_REGISTER") return aliveCount <= 1 ? 1 : 5
-  if (item && ownedTypes.has(item)) return 4
   if (item && ["BAR", "GAMBLING_HOUSE", "STRIP_CLUB"].includes(item)) return 3
   if (item === "GUN") return 2
   return 1

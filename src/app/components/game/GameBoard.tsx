@@ -207,7 +207,10 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   })
   const [seatingSelectedGangsterId, setSeatingSelectedGangsterId] = useState<string | null>(null)
   const [isInitialSeating, setIsInitialSeating] = useState<boolean>(seatingType === "manual")
-  const [currentPlayerIndex, setCurrentPlayerIndex] = useState<number>(0)
+  // Randomise which player goes first while keeping the fixed red→blue→yellow→… order
+  const [currentPlayerIndex, setCurrentPlayerIndex] = useState<number>(() =>
+    gameMode === "multiplayer" ? 0 : Math.floor(Math.random() * playerCount)
+  )
   const [selectedGangsterIndex, setSelectedGangsterIndex] = useState<number | null>(null)
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
   const [selectedDirection, setSelectedDirection] = useState<"left" | "right" | null>(null)
@@ -791,6 +794,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                            postState.board.find((p) => p.id === id)?.occupiedBy === null
                 )
                 if (eliminatedSeats.length > 0) {
+                  for (const seatId of eliminatedSeats) snapshotElimination(seatId, preState, 900 + 1800)
                   setTimeout(() => triggerSeatSprite(eliminatedSeats, ELIMINATION_SPRITE, 1800), 900)
                 }
               } else if (spritePath) {
@@ -1343,12 +1347,13 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       return
     }
 
-    // Elimination sprite for EXPLODE_CAKE and SLEEPING_PILLS (overdose) kills
+    // Elimination sprite + victim snapshot for EXPLODE_CAKE and SLEEPING_PILLS overdose kills
     if (card.type === "EXPLODE_CAKE" || card.type === "SLEEPING_PILLS") {
       const eliminatedSeats = preActionState.board
         .filter((pos) => pos.occupiedBy !== null && newGameState.board.find((p) => p.id === pos.id)?.occupiedBy === null)
         .map((pos) => pos.id)
       if (eliminatedSeats.length > 0) {
+        for (const seatId of eliminatedSeats) snapshotElimination(seatId, preActionState, 900 + 1800)
         setTimeout(() => triggerSeatSprite(eliminatedSeats, ELIMINATION_SPRITE, 1800), 900)
       }
     }

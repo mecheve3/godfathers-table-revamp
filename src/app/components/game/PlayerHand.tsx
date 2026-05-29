@@ -83,6 +83,9 @@ export default function PlayerHand({ cards, onSelectCard, selectedCardId, disabl
         {cards.map((card) => {
           const isSecondDisplacementLocked = gameState.currentPhase === "SECOND_DISPLACEMENT" && card.type !== "DISPLACEMENT"
           const isPlayable = isDiscardMode || (playableCards[card.id] && !isSecondDisplacementLocked)
+          // Only apply the disabled visual when it's actually the player's turn — during other
+          // players' turns all cards stay full-colour so the hand doesn't flicker every turn.
+          const showDisabled = !disabled && !isPlayable && !isDiscardMode
           const isSelected = selectedCardId === card.id
           const isNewlyDealt = newlyDealtCardIds.includes(card.id)
           const imageSrc = getCardImage(card.type)
@@ -92,12 +95,12 @@ export default function PlayerHand({ cards, onSelectCard, selectedCardId, disabl
               <button
                 onClick={() => onSelectCard(card.id)}
                 disabled={isSelected ? false : (disabled || (!isDiscardMode && (!playableCards[card.id] || isSecondDisplacementLocked)))}
-                title={!isPlayable && !isDiscardMode ? t("game.no_gangsters") : ""}
+                title={showDisabled ? t("game.no_gangsters") : ""}
                 className={cn(
                   `w-14 h-20 lg:w-20 lg:h-28 rounded-md border-2 ${borderColor} overflow-hidden transition-all block`,
                   isSelected ? "ring-2 ring-white scale-105" : "",
                   isDiscardMode ? "hover:ring-2 hover:ring-red-500 cursor-pointer" : "",
-                  !isPlayable && !isDiscardMode ? "opacity-50 grayscale cursor-not-allowed" : !isDiscardMode ? "hover:scale-105 cursor-pointer" : "",
+                  showDisabled ? "opacity-50 grayscale cursor-not-allowed" : !isDiscardMode ? "hover:scale-105 cursor-pointer" : "",
                   isNewlyDealt ? "card-new-deal" : "",
                 )}
               >
