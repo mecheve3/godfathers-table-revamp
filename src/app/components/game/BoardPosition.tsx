@@ -30,18 +30,18 @@ interface BoardPositionProps {
 export const positionMap: Record<number, { x: number; y: number }> = {
   1: { x: 6.5, y: 50 },
   2: { x: 7.5, y: 30 },
-  3: { x: 13.5, y: 19.5 },
-  4: { x: 21.5, y: 20 },
-  5: { x: 28, y: 20 },
-  6: { x: 34, y: 20 },
-  7: { x: 40.5, y: 20 },
-  8: { x: 47, y: 20 },
-  9: { x: 53, y: 20 },
-  10: { x: 59.5, y: 24 },
-  11: { x: 66, y: 24 },
-  12: { x: 72, y: 24 },
-  13: { x: 78.5, y: 20 },
-  14: { x: 86.5, y: 19.5 },
+  3: { x: 13.5, y: 19 },
+  4: { x: 21.5, y: 18 },
+  5: { x: 28, y: 18 },
+  6: { x: 34, y: 18 },
+  7: { x: 40.5, y: 18 },
+  8: { x: 47, y: 18 },
+  9: { x: 53, y: 18 },
+  10: { x: 59.5, y: 18 },
+  11: { x: 66, y: 18 },
+  12: { x: 72, y: 18 },
+  13: { x: 78.5, y: 18 },
+  14: { x: 86.5, y: 19 },
   15: { x: 92.5, y: 30 },
   16: { x: 93.5, y: 50 },
   17: { x: 92.5, y: 70 },
@@ -92,6 +92,16 @@ const itemIconPositionMap: Record<number, { x: number; y: number }> = {
   28: { x: 21.5, y: 68 },
   29: { x: 16.5, y: 68 },
   30: { x: 12.5, y: 65 },
+}
+
+// Counterclockwise rotation (in degrees) applied to each seat's character sprite
+// so the gangster faces toward the centre of the table.
+const seatRotationMap: Record<number, number> = {
+  1: 90, 2: 45, 3: 30,
+  4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0, 12: 0, 13: 0,
+  14: 330, 15: 315, 16: 270, 17: 225, 18: 210,
+  19: 180, 20: 180, 21: 180, 22: 180, 23: 180, 24: 180, 25: 180, 26: 180, 27: 180, 28: 180,
+  29: 120, 30: 135,
 }
 
 const getPositionStyle = (positionId: number) => {
@@ -155,6 +165,9 @@ export default function BoardPosition({
 
   const effectivelyEmpty = !occupiedBy || hideOccupant
 
+  // Counterclockwise rotation so the sprite faces the table centre
+  const seatRotationDeg = seatRotationMap[position.id] ?? 0
+
   // Drop-shadow glows follow the PNG silhouette — no clipping mask needed.
   const glowFilter = pillSelected
     ? "drop-shadow(0 0 6px rgba(192,132,252,1)) drop-shadow(0 0 12px rgba(192,132,252,0.6))"
@@ -194,10 +207,15 @@ export default function BoardPosition({
             alt={gangsterDetails.type}
             className={`w-full h-full object-contain pointer-events-none select-none
               ${isSleeping ? "opacity-50 saturate-50" : ""}`}
-            style={{
-              ...(glowFilter ? { filter: glowFilter } : {}),
-              ...(poseOverride?.flipX ? { transform: "scaleX(-1)" } : {}),
-            }}
+            style={(() => {
+              const parts: string[] = []
+              if (seatRotationDeg !== 0) parts.push(`rotate(${-seatRotationDeg}deg)`)
+              if (poseOverride?.flipX) parts.push("scaleX(-1)")
+              return {
+                ...(glowFilter ? { filter: glowFilter } : {}),
+                ...(parts.length > 0 ? { transform: parts.join(" ") } : {}),
+              }
+            })()}
             draggable={false}
           />
         )}
@@ -244,19 +262,15 @@ export default function BoardPosition({
         </div>
       )}
 
-      {/* Cake bombs — placed at the inward table-centre position so they sit on the table, not on top of the character */}
-      {cakes.map((cake, index) => {
-        const iconPos = itemIconPositionMap[position.id]
-        const iconStyle = iconPos
-          ? { left: `${iconPos.x}%`, top: `${iconPos.y}%`, transform: `translate(${index === 0 ? "-120%" : "20%"}, -50%)` }
-          : { left: `calc(${style.left} + ${index === 0 ? "-20px" : "20px"})`, top: `calc(${style.top} + ${index === 0 ? "-20px" : "20px"})` }
-        return (
+      {/* Cake bombs — offset slightly from the character position */}
+      {cakes.map((cake, index) => (
         <div
           key={cake.id}
           className="absolute w-8 h-8 rounded-full border-2 border-white flex items-center justify-center cursor-pointer cake-bomb-blink overflow-hidden"
           style={{
             backgroundColor: cake.color,
-            ...iconStyle,
+            left: `calc(${style.left} + ${index === 0 ? "-20px" : "20px"})`,
+            top: `calc(${style.top} + ${index === 0 ? "-20px" : "20px"})`,
             zIndex: 5,
           }}
           title={`Cake placed on round ${cake.roundPlaced} — explodes next round`}
@@ -269,8 +283,7 @@ export default function BoardPosition({
             draggable={false}
           />
         </div>
-        )
-      })}
+      ))}
     </>
   )
 }
