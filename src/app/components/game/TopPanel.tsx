@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react"
-import { Menu, Music, Music2, Volume2, VolumeOff, BookOpen, X, ChevronLeft, ChevronRight } from "lucide-react"
+import { Menu, Music, Music2, Volume2, VolumeOff, BookOpen, X, ChevronLeft, ChevronRight, Users } from "lucide-react"
 import { useAudio } from "../../features/game/AudioContext"
 import { useLang } from "../../context/LanguageContext"
 
@@ -7,6 +7,9 @@ interface TopPanelProps {
   onRestart: () => void
   onNewGame: () => void
   showRulebookOnMount?: boolean
+  onRulesOpenChange?: (open: boolean) => void
+  /** Mobile-only: called when the Players/Log icon is tapped */
+  onOpenPlayers?: () => void
 }
 
 // ── Chapter data ────────────────────────────────────────────────────────────
@@ -244,9 +247,11 @@ function HowToPlayModal({ onClose, startChapter = 0 }: { onClose: () => void; st
 
 // ── TopPanel ─────────────────────────────────────────────────────────────────
 
-export default function TopPanel({ onRestart, onNewGame, showRulebookOnMount = false }: TopPanelProps) {
+export default function TopPanel({ onRestart, onNewGame, showRulebookOnMount = false, onRulesOpenChange, onOpenPlayers }: TopPanelProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [howToPlayOpen, setHowToPlayOpen] = useState(showRulebookOnMount)
+
+  useEffect(() => { onRulesOpenChange?.(howToPlayOpen) }, [howToPlayOpen]) // eslint-disable-line react-hooks/exhaustive-deps
   const menuRef = useRef<HTMLDivElement>(null)
   const { musicEnabled, sfxEnabled, toggleMusic, toggleSfx } = useAudio()
   const { lang, setLang, t } = useLang()
@@ -338,7 +343,19 @@ export default function TopPanel({ onRestart, onNewGame, showRulebookOnMount = f
       <h1 className="text-xl font-bold text-[#F5AC0E] flex-1 text-center font-serif tracking-widest uppercase">
         {t("game.title")}
       </h1>
-      <div className="w-10" />
+      {/* Right side: Players toggle on mobile, empty spacer on desktop (balances menu btn) */}
+      <div className="w-10 flex items-center justify-center">
+        {onOpenPlayers && (
+          <button
+            onClick={onOpenPlayers}
+            className="lg:hidden p-2 text-zinc-400 hover:text-white active:text-white rounded transition-colors"
+            style={{ minWidth: 40, minHeight: 40 }}
+            aria-label="Players & Log"
+          >
+            <Users className="w-5 h-5" />
+          </button>
+        )}
+      </div>
 
       {howToPlayOpen && (
         <HowToPlayModal

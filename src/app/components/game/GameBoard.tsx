@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import {
   initialGameState, initialGameState4, initialGameState5, initialGameState6,
   performAction, calculatePayment, calculatePaymentBreakdown, initializeGame, dealCards, playCard,
@@ -14,10 +14,13 @@ import { decideBotFirstPlay, decideBotSecondPlay, getRandomDiscardCard, decideBo
 import { playSFX } from "../../features/game/sfx"
 import { buildActionLog, buildExplosionLog, buildPaymentLog } from "../../features/game/logBuilder"
 import type { LogEntry } from "../../features/game/types"
+import { track } from "../../../lib/analytics"
+import { captureError, setGameContext, setPlayerContext, trackAction } from "../../../lib/monitoring"
 import ActionPanel from "./ActionPanel"
-import BoardPosition from "./BoardPosition"
+import BoardPosition, { positionMap } from "./BoardPosition"
 import TopPanel from "./TopPanel"
 import BottomPanel from "./BottomPanel"
+import MobileDrawer from "./MobileDrawer"
 import { useLang } from "../../context/LanguageContext"
 
 interface ActionSummary {
@@ -137,6 +140,26 @@ export interface GameBoardProps {
   onGameFinished?: (winnerId: string, winnerType: "HUMAN" | "CPU") => void
 }
 
+function BulletProjectile({ fromX, fromY, toX, toY, angle, duration }: { fromX: number; fromY: number; toX: number; toY: number; angle: number; duration: number }) {
+  const [moved, setMoved] = useState(false)
+  useEffect(() => { const id = requestAnimationFrame(() => setMoved(true)); return () => cancelAnimationFrame(id) }, [])
+  return (
+    <div
+      className="absolute pointer-events-none z-50"
+      style={{
+        left: `${moved ? toX : fromX}%`,
+        top:  `${moved ? toY : fromY}%`,
+        transform: `translate(-50%, -50%) rotate(${angle}deg)`,
+        transition: moved ? `left ${duration}ms linear, top ${duration}ms linear` : "none",
+        width: 28,
+        height: 10,
+      }}
+    >
+      <img src="/images/Sprites/bullet.png" alt="" className="w-full h-full object-contain" draggable={false} />
+    </div>
+  )
+}
+
 export default function GameBoard({ playerCount, seatingType = "automatic", gameMode = "hotseat", playerNames, localPlayerIndex, cpuPlayerIds, incomingSync, onTurnEnd, onAbandon, socketStatus, onReturnToHome, onGameFinished }: GameBoardProps) {
   // In solo mode use default CPU IDs; in multiplayer use the explicit list from slots
   const botPlayerIds = cpuPlayerIds
@@ -150,6 +173,8 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
 
   // Confirmation dialog state
   const [confirmAction, setConfirmAction] = useState<null | 'restart' | 'quit'>(null)
+  const [rulesOpen, setRulesOpen] = useState(false)
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
 
   const getInitialState = (): GameState => {
     let base: GameState
@@ -210,6 +235,14 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   const [newlyDealtCardIds, setNewlyDealtCardIds] = useState<string[]>([])
   const [draggingFromSeatId, setDraggingFromSeatId] = useState<number | null>(null)
 
+  // ── Action-pose overrides: replace idle sprite during gun/knife animations ──
+  const [seatPoseOverrides, setSeatPoseOverrides] = useState<Record<number, { variant: 2 | 3; flipX: boolean }>>({})
+
+  // ── Bullet projectile animations ─────────────────────────────────────────
+  interface BulletData { id: string; fromX: number; fromY: number; toX: number; toY: number; angle: number; duration: number }
+  const [bullets, setBullets] = useState<BulletData[]>([])
+  const boardContainerRef = useRef<HTMLDivElement>(null)
+
   const addLogEntry = (data: Omit<LogEntry, "id" | "highlighted">) => {
     const id = `log-${Date.now()}-${Math.random().toString(36).slice(2)}`
     const entry: LogEntry = { ...data, id, highlighted: true }
@@ -243,8 +276,41 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     }, durationMs)
   }
 
+  /** Replace a seat's idle sprite with an action pose for `durationMs`, then revert. */
+  const triggerPoseOverride = useCallback((seatId: number, variant: 2 | 3, flipX: boolean, durationMs: number) => {
+    setSeatPoseOverrides((prev) => ({ ...prev, [seatId]: { variant, flipX } }))
+    setTimeout(() => {
+      setSeatPoseOverrides((prev) => { const next = { ...prev }; delete next[seatId]; return next })
+    }, durationMs)
+  }, [])
+
+  /** Spawn a bullet that travels from `fromSeatId` to `toSeatId` at ~800 px/s. */
+  const spawnBullet = useCallback((fromSeatId: number, toSeatId: number) => {
+    const from = positionMap[fromSeatId]
+    const to   = positionMap[toSeatId]
+    if (!from || !to) return
+    const boardEl = boardContainerRef.current
+    const boardW  = boardEl?.offsetWidth  ?? 800
+    const boardH  = boardEl?.offsetHeight ?? 400
+    const dx = (to.x - from.x) / 100 * boardW
+    const dy = (to.y - from.y) / 100 * boardH
+    const distance = Math.sqrt(dx * dx + dy * dy)
+    const duration = Math.round(distance / 800 * 1000)
+    const angle    = Math.atan2(dy, dx) * (180 / Math.PI)
+    const id = `b-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    setBullets((prev) => [...prev, { id, fromX: from.x, fromY: from.y, toX: to.x, toY: to.y, angle, duration }])
+    setTimeout(() => setBullets((prev) => prev.filter((b) => b.id !== id)), duration + 120)
+  }, [])
+
   const gameStateRef = useRef<GameState>(gameState)
   useEffect(() => { gameStateRef.current = gameState }, [gameState])
+
+  useEffect(() => {
+    setGameContext(gameMode, playerCount)
+    track("game_started", { game_mode: gameMode, player_count: playerCount })
+    const localPlayer = gameState.players[localPlayerIndex ?? 0]
+    if (localPlayer) setPlayerContext(localPlayer.id, localPlayer.name)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Stores the first action of a two-action turn (displacement second play)
   const firstActionRef = useRef<SyncAction | null>(null)
@@ -261,7 +327,12 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   useEffect(() => {
     if (!incomingSync) return
     // Don't interrupt this client while they are mid-seating-action
-    if (gameState.currentPhase === "SEATING_SELECT_SEAT" || gameState.currentPhase === "SEATING_CONFIRM") return
+    const isLocalPlayerSeatingTurn = localPlayerId != null && seatingPlayerOrder[seatingCurrentIdx] === localPlayerId
+    if (
+      gameState.currentPhase === "SEATING_SELECT_SEAT" ||
+      gameState.currentPhase === "SEATING_CONFIRM" ||
+      (gameState.currentPhase === "SEATING_SELECT_GANGSTER" && isLocalPlayerSeatingTurn)
+    ) return
 
     // If the payload includes a pre-computed payment log, tell the payment useEffect
     // to skip addLogEntry — we'll replay it ourselves below in the correct order.
@@ -271,13 +342,16 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     setCurrentPlayerIndex(incomingSync.currentPlayerIndex)
 
     // Restore seating state if included (police raid / initial seating)
+    const inSeatingPhase = ["SEATING_SELECT_GANGSTER", "SEATING_SELECT_SEAT", "SEATING_CONFIRM"].includes(incomingSync.gameState.currentPhase)
     if (incomingSync.seatingPlayerOrder.length > 0) {
       setSeatingPlayerOrder(incomingSync.seatingPlayerOrder)
       setSeatingCurrentIdx(incomingSync.seatingCurrentIdx)
       setSeatingQueue(incomingSync.seatingQueue)
       // Preserve the isInitialSeating flag so handleSeatingConfirm takes the right path
       setIsInitialSeating(incomingSync.isInitialSeating ?? false)
-    } else {
+    } else if (!inSeatingPhase) {
+      // Only clear seating state when the incoming state is not a seating phase.
+      // A stale non-seating sync during police-raid re-seating must not wipe the queue.
       setSeatingPlayerOrder([])
       setSeatingQueue({})
       setSeatingCurrentIdx(0)
@@ -313,10 +387,24 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
             if (act.cardType === "DISPLACEMENT" && seatIds.length >= 2) {
               triggerSeatSprite([seatIds[0]], imagePath, 900)
               setTimeout(() => triggerSeatSprite([seatIds[1]], imagePath, 900), 450)
-            } else if (act.cardType === "KNIFE" || act.cardType === "GUN") {
-              triggerSeatSprite([seatIds[0]], imagePath, 900)
-              if (seatIds.length >= 2 && gameState.board.find((p) => p.id === seatIds[1])?.occupiedBy != null) {
-                setTimeout(() => triggerSeatSprite([seatIds[1]], ELIMINATION_SPRITE, 1800), 900)
+            } else if (act.cardType === "GUN") {
+              const [shooterSeat, targetSeat] = seatIds
+              const fromPos = positionMap[shooterSeat]
+              const toPos   = targetSeat != null ? positionMap[targetSeat] : null
+              const flipX   = toPos && fromPos ? toPos.x < fromPos.x : false
+              triggerPoseOverride(shooterSeat, 2, flipX, 900)
+              if (targetSeat != null) spawnBullet(shooterSeat, targetSeat)
+              if (targetSeat != null && gameState.board.find((p) => p.id === targetSeat)?.occupiedBy != null) {
+                setTimeout(() => triggerSeatSprite([targetSeat], ELIMINATION_SPRITE, 1800), 900)
+              }
+            } else if (act.cardType === "KNIFE") {
+              const [shooterSeat, targetSeat] = seatIds
+              const fromPos = positionMap[shooterSeat]
+              const toPos   = targetSeat != null ? positionMap[targetSeat] : null
+              const flipX   = toPos && fromPos ? toPos.x < fromPos.x : false
+              triggerPoseOverride(shooterSeat, 3, flipX, 900)
+              if (targetSeat != null && gameState.board.find((p) => p.id === targetSeat)?.occupiedBy != null) {
+                setTimeout(() => triggerSeatSprite([targetSeat], ELIMINATION_SPRITE, 1800), 900)
               }
             } else if (act.cardType === "PASS_CAKE") {
               triggerSeatSprite([seatIds[0]], imagePath, 900)
@@ -455,15 +543,16 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
           (gameMode === "multiplayer" && currentPlayer.id === localPlayerId)
         if (shouldPlayCash) {
           playSFX("bank", 0.7)
-          const INCOME_ITEMS = new Set(["BAR", "GAMBLING_HOUSE", "STRIP_CLUB", "CASH_REGISTER"])
-          const moneySeatIds = gameState.board.filter((pos) => {
-            if (pos.occupiedBy?.playerId !== currentPlayer.id) return false
-            const gangster = currentPlayer.gangsters.find((g) => g.id === pos.occupiedBy?.gangsterId)
-            if (!gangster || gangster.status === "sleeping") return false
-            // Business / cash-register seat, or the Godfather (generates income from any seat)
-            return (pos.item && INCOME_ITEMS.has(pos.item)) || gangster.type === "GODFATHER"
-          }).map((pos) => pos.id)
-          if (moneySeatIds.length > 0) triggerSeatSprite(moneySeatIds, "/images/Sprites/money.png", 1200)
+          if (!rulesOpen) {
+            const INCOME_ITEMS = new Set(["BAR", "GAMBLING_HOUSE", "STRIP_CLUB", "CASH_REGISTER"])
+            const moneySeatIds = gameState.board.filter((pos) => {
+              if (pos.occupiedBy?.playerId !== currentPlayer.id) return false
+              const gangster = currentPlayer.gangsters.find((g) => g.id === pos.occupiedBy?.gangsterId)
+              if (!gangster || gangster.status === "sleeping") return false
+              return (pos.item && INCOME_ITEMS.has(pos.item)) || gangster.type === "GODFATHER"
+            }).map((pos) => pos.id)
+            if (moneySeatIds.length > 0) triggerSeatSprite(moneySeatIds, "/images/Sprites/money.png", 1200)
+          }
         }
         // In multiplayer, the incomingSync handler replays this log at the correct position
         // in the action sequence — suppress the local log to avoid ordering issues on P2+
@@ -499,6 +588,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       const winner = sortedPlayers[0]
       addLogEntry({ round: gameState.turn, playerId: winner.id, playerName: winner.name, message: t("log.gameover", { name: winner.name, amount: winner.money.toLocaleString() }), type: "system" })
       const winnerType: "HUMAN" | "CPU" = botPlayerIds.includes(winner.id) ? "CPU" : "HUMAN"
+      track("game_finished", { winner_id: winner.id, winner_type: winnerType, final_turn: gameState.turn, player_count: gameState.players.length })
       onGameFinished?.(winner.id, winnerType)
     }
   }, [gameState]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -523,7 +613,9 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     setGameOver(true)
     const winner = sortedPlayers[0]
     addLogEntry({ round: gameState.turn, playerId: winner.id, playerName: winner.name, message: t("log.gameover", { name: winner.name, amount: winner.money.toLocaleString() }), type: "system" })
-    onGameFinished?.(winner.id, botPlayerIds.includes(winner.id) ? "CPU" : "HUMAN")
+    const wrapUpWinnerType: "HUMAN" | "CPU" = botPlayerIds.includes(winner.id) ? "CPU" : "HUMAN"
+    track("game_finished", { winner_id: winner.id, winner_type: wrapUpWinnerType, final_turn: gameState.turn, player_count: gameState.players.length, via: "wrap_up" })
+    onGameFinished?.(winner.id, wrapUpWinnerType)
   }
 
   const getNextActivePlayerIndex = (fromIdx: number, players: typeof gameState.players): number => {
@@ -791,7 +883,9 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         nextIdx = (nextIdx + 1) % total
       }
       setSeatingCurrentIdx(nextIdx); currentState.currentPhase = "SEATING_SELECT_GANGSTER"; setGameState(currentState)
-      onTurnEnd?.({ gameState: currentState, currentPlayerIndex: nextIdx, seatingPlayerOrder: seatingPlayerOrder, seatingCurrentIdx: nextIdx, seatingQueue: currentQueue, actions: [] })
+      const nextBotSeatingPlayerId = seatingPlayerOrder[nextIdx]
+      const nextBotPlayerArrayIdx = currentState.players.findIndex((p) => p.id === nextBotSeatingPlayerId)
+      onTurnEnd?.({ gameState: currentState, currentPlayerIndex: nextBotPlayerArrayIdx !== -1 ? nextBotPlayerArrayIdx : nextIdx, seatingPlayerOrder: seatingPlayerOrder, seatingCurrentIdx: nextIdx, seatingQueue: currentQueue, actions: [] })
     }, 400)
 
     return () => clearTimeout(timer)
@@ -899,6 +993,40 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       const vg = getValidGangstersForCard(gameState, currentPlayer.id, card.type)
       setValidGangsters(vg)
       if (vg.length === 0) { return }
+      // Auto-skip SELECT_GANGSTER when only one gangster can play Gun or Knife
+      if ((card.type === "GUN" || card.type === "KNIFE") && vg.length === 1) {
+        const gi = vg[0]
+        const g = currentPlayer.gangsters[gi]
+        if (g && g.position !== null) {
+          setSelectedGangsterIndex(gi)
+          let targets: number[]
+          if (card.type === "GUN") {
+            const t = getValidGunTargetPosition(gameState, currentPlayer.id, gi)
+            targets = t ? [t] : []
+          } else {
+            targets = getValidKnifeTargetPositions(gameState, currentPlayer.id, gi)
+          }
+          setValidTargets(targets)
+          if (targets.length === 0) return
+          if (card.type === "GUN" && targets.length === 1) {
+            setTargetPositionId(targets[0])
+            setGameState({ ...gameState, currentPhase: "CONFIRM_ACTION" })
+          } else if (card.type === "KNIFE" && targets.length === 1) {
+            const pos = gameState.board.find((p) => p.id === g.position)
+            if (pos) {
+              const dir: "left" | "right" = pos.leftId === targets[0] ? "left" : "right"
+              setSelectedDirection(dir)
+              setTargetPositionId(targets[0])
+              setGameState({ ...gameState, currentPhase: "CONFIRM_ACTION" })
+            } else {
+              setGameState({ ...gameState, currentPhase: "SELECT_TARGET" })
+            }
+          } else {
+            setGameState({ ...gameState, currentPhase: "SELECT_TARGET" })
+          }
+          return
+        }
+      }
       setGameState({ ...gameState, currentPhase: "SELECT_GANGSTER" })
     }
   }
@@ -1123,29 +1251,54 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
 
     // Sprite overlays — action sprite on attacker/source, elimination sprite on victim
     const spritePath = CARD_SPRITE[card.type]
-    if (spritePath && feedback.seatIds.length > 0) {
-      if (card.type === "DISPLACEMENT" && feedback.seatIds.length >= 2) {
+    if (feedback.seatIds.length > 0) {
+      if (card.type === "DISPLACEMENT" && feedback.seatIds.length >= 2 && spritePath) {
         triggerSeatSprite([feedback.seatIds[0]], spritePath, 900)
         setTimeout(() => triggerSeatSprite([feedback.seatIds[1]], spritePath, 900), 450)
-      } else if (card.type === "KNIFE" || card.type === "GUN") {
-        // Action sprite on attacker; schedule elimination sprite on victim if occupied
-        triggerSeatSprite([feedback.seatIds[0]], spritePath, 900)
-        if (feedback.seatIds.length >= 2 && gameState.board.find((p) => p.id === feedback.seatIds[1])?.occupiedBy != null) {
-          setTimeout(() => triggerSeatSprite([feedback.seatIds[1]], ELIMINATION_SPRITE, 1800), 900)
+      } else if (card.type === "GUN") {
+        // Pose sprite on shooter + animated bullet; elimination sprite on victim
+        const [shooterSeat, targetSeat] = feedback.seatIds
+        const fromPos = positionMap[shooterSeat]
+        const toPos   = targetSeat != null ? positionMap[targetSeat] : null
+        const flipX   = toPos && fromPos ? toPos.x < fromPos.x : false
+        triggerPoseOverride(shooterSeat, 2, flipX, 900)
+        if (targetSeat != null) spawnBullet(shooterSeat, targetSeat)
+        if (targetSeat != null && gameState.board.find((p) => p.id === targetSeat)?.occupiedBy != null) {
+          setTimeout(() => triggerSeatSprite([targetSeat], ELIMINATION_SPRITE, 1800), 900)
         }
-      } else if (card.type === "PASS_CAKE") {
-        triggerSeatSprite([feedback.seatIds[0]], spritePath, 900)
-      } else if (card.type === "EXPLODE_CAKE") {
-        // Explosion sprite on center cake seat only; blast radius is covered by seat animation
-        triggerSeatSprite([feedback.seatIds[0]], spritePath, 900, true)
-      } else {
-        triggerSeatSprite(feedback.seatIds, spritePath, 900)
+      } else if (card.type === "KNIFE") {
+        // Pose sprite on attacker (flipped to face victim); elimination sprite on victim
+        const [shooterSeat, targetSeat] = feedback.seatIds
+        const fromPos = positionMap[shooterSeat]
+        const toPos   = targetSeat != null ? positionMap[targetSeat] : null
+        const flipX   = toPos && fromPos ? toPos.x < fromPos.x : false
+        triggerPoseOverride(shooterSeat, 3, flipX, 900)
+        if (targetSeat != null && gameState.board.find((p) => p.id === targetSeat)?.occupiedBy != null) {
+          setTimeout(() => triggerSeatSprite([targetSeat], ELIMINATION_SPRITE, 1800), 900)
+        }
+      } else if (spritePath) {
+        if (card.type === "PASS_CAKE") {
+          triggerSeatSprite([feedback.seatIds[0]], spritePath, 900)
+        } else if (card.type === "EXPLODE_CAKE") {
+          triggerSeatSprite([feedback.seatIds[0]], spritePath, 900, true)
+        } else {
+          triggerSeatSprite(feedback.seatIds, spritePath, 900)
+        }
       }
     }
 
     const preActionState = newGameState
-    try { newGameState = performAction(newGameState, action) }
-    catch (err) { return }
+    try {
+      newGameState = trackAction(
+        "game.perform_action",
+        { "card.type": card.type, "player.id": currentPlayer.id },
+        () => performAction(newGameState, action),
+      )
+    } catch (err) {
+      captureError(err, { player_id: currentPlayer.id, game_mode: gameMode, card_type: card.type, turn_number: gameState.turn })
+      track("game_error", { card_type: card.type, turn_number: gameState.turn })
+      return
+    }
 
     // Elimination sprite for EXPLODE_CAKE and SLEEPING_PILLS (overdose) kills
     if (card.type === "EXPLODE_CAKE" || card.type === "SLEEPING_PILLS") {
@@ -1272,7 +1425,11 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       nextIdx = (nextIdx + 1) % total
     }
     setSeatingCurrentIdx(nextIdx); newGameState.currentPhase = "SEATING_SELECT_GANGSTER"; setGameState(newGameState)
-    onTurnEnd?.({ gameState: newGameState, currentPlayerIndex: nextIdx, seatingPlayerOrder: seatingPlayerOrder, seatingCurrentIdx: nextIdx, seatingQueue: newQueue, actions: [] })
+    // Resolve the actual player-array index for the next seating player so receiving clients
+    // get a correct currentPlayerIndex (seating-order index ≠ player-array index).
+    const nextSeatingPlayerId = seatingPlayerOrder[nextIdx]
+    const nextPlayerArrayIdx = newGameState.players.findIndex((p) => p.id === nextSeatingPlayerId)
+    onTurnEnd?.({ gameState: newGameState, currentPlayerIndex: nextPlayerArrayIdx !== -1 ? nextPlayerArrayIdx : nextIdx, seatingPlayerOrder: seatingPlayerOrder, seatingCurrentIdx: nextIdx, seatingQueue: newQueue, actions: [] })
   }
 
   const handleCancelAction = () => {
@@ -1323,6 +1480,13 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     const paymentLogEntry: Omit<LogEntry, "id" | "highlighted"> | undefined = nextPayment > 0
       ? { round: newGameState.turn, playerId: newGameState.players[nextPlayerIndex].id, playerName: newGameState.players[nextPlayerIndex].name, message: buildPaymentLog(newGameState.players[nextPlayerIndex].name, nextPayment, t, nextBreakdown), type: "payment" }
       : undefined
+
+    track("turn_played", {
+      player_id: currentGameState.players[currentPlayerIndex].id,
+      player_type: botPlayerIds.includes(currentGameState.players[currentPlayerIndex].id) ? "CPU" : "HUMAN",
+      turn_number: newGameState.turn,
+      remaining_players: newGameState.players.filter((p) => p.gangsters.some((g) => g.position !== null)).length,
+    })
 
     // Broadcast state to other clients in multiplayer
     onTurnEnd?.({ gameState: newGameState, currentPlayerIndex: nextPlayerIndex, seatingPlayerOrder: [], seatingCurrentIdx: 0, seatingQueue: {}, actions, paymentLog: paymentLogEntry })
@@ -1381,26 +1545,23 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   const RANK_LABELS = [t('rank.1'), t('rank.2'), t('rank.3'), t('rank.4'), t('rank.5'), t('rank.6')]
 
   return (
-    <div className="h-screen overflow-hidden flex flex-col bg-gradient-to-b from-[#2B1710] to-[#3D2314]">
+    <>
+    {/* ── Portrait orientation guard (mobile-only, shown via CSS media query) ── */}
+    <div className="portrait-guard hidden fixed inset-0 z-[9999] bg-zinc-950 flex-col items-center justify-center gap-5 select-none px-8">
+      <div style={{ fontSize: "3.5rem", lineHeight: 1 }}>↻</div>
+      <div className="text-center">
+        <p className="text-white text-xl font-bold mb-1.5">Rotate your device</p>
+        <p className="text-zinc-400 text-sm leading-relaxed">
+          Godfather's Table is designed for landscape mode
+        </p>
+      </div>
+    </div>
+
+    <div className="game-root h-screen overflow-hidden flex flex-col bg-gradient-to-b from-[#2B1710] to-[#3D2314]">
       {policeRaidActive && (
         <div className="fixed inset-0 pointer-events-none police-raid-overlay" style={{ background: "linear-gradient(135deg, rgba(239,68,68,0.35), rgba(59,130,246,0.35))", zIndex: 9999 }} />
       )}
 
-      {/* Wrap-up banner — shown when human crew is fully eliminated but game is still running */}
-      {showWrapUp && (
-        <div className="fixed bottom-6 right-6 z-50 max-w-xs bg-zinc-900/95 border border-zinc-600 rounded-lg p-4 shadow-2xl flex flex-col gap-3">
-          <div>
-            <p className="text-[#F5AC0E] font-bold text-sm leading-snug">{t("game.wrapup.title")}</p>
-            <p className="text-zinc-400 text-xs mt-1 leading-snug">{t("game.wrapup.body")}</p>
-          </div>
-          <button
-            onClick={handleWrapUp}
-            className="w-full bg-[#F5AC0E] text-[#2B1710] font-bold text-sm py-2 rounded hover:bg-[#F5AC0E]/80 transition-colors"
-          >
-            {t("game.wrapup.btn")}
-          </button>
-        </div>
-      )}
 
       {/* ── Final Results Modal ──────────────────────────────────────────────── */}
       {gameOver && (
@@ -1509,6 +1670,8 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
             onRestart={() => setConfirmAction('restart')}
             onNewGame={() => setConfirmAction('quit')}
             showRulebookOnMount
+            onRulesOpenChange={setRulesOpen}
+            onOpenPlayers={() => setMobileDrawerOpen(true)}
           />
       {confirmAction && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
@@ -1572,7 +1735,8 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
               <div className="lg:w-[75%] flex flex-col min-h-0 overflow-hidden">
                 <div className="flex-1 min-h-0 bg-gradient-to-b from-[#3D2314] to-[#2B1710] rounded-lg flex items-center overflow-hidden">
                   <div
-                    className="relative w-full aspect-[100/50] rounded-lg overflow-hidden"
+                    ref={boardContainerRef}
+                    className="relative h-full aspect-[100/50] max-w-full mx-auto rounded-lg overflow-hidden"
                     style={{
                       backgroundImage: "url('/images/game-board-background.png')",
                       backgroundSize: "contain",
@@ -1611,6 +1775,11 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                       )
                     })()}
 
+                    {/* Bullet projectiles */}
+                    {bullets.map((b) => (
+                      <BulletProjectile key={b.id} fromX={b.fromX} fromY={b.fromY} toX={b.toX} toY={b.toY} angle={b.angle} duration={b.duration} />
+                    ))}
+
                     {gameState.board.map((position) => (
                       <BoardPosition
                         key={position.id}
@@ -1645,6 +1814,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                         animClass={seatAnimations[position.id]}
                         spriteOverlay={seatSpriteOverlays[position.id]}
                         spriteLarge={seatSpriteOverlaysLarge[position.id] ?? false}
+                        poseOverride={seatPoseOverrides[position.id] ?? null}
                         onCakeClick={gameState.currentPhase === "SELECT_CAKE" ? handleDirectCakeClick : undefined}
                         draggable={
                           gameState.currentPhase === "SELECT_GANGSTER" &&
@@ -1668,8 +1838,8 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                 </div>
               </div>
 
-              {/* Right Panel */}
-              <div className="lg:w-[25%] flex flex-col min-h-0 overflow-hidden">
+              {/* Right Panel — hidden on mobile, accessible via the drawer */}
+              <div className="hidden lg:flex lg:w-[25%] flex-col min-h-0 overflow-hidden">
                 <ActionPanel
                   currentPlayer={gameState.players[currentPlayerIndex]}
                   selectedGangster={selectedGangster}
@@ -1748,11 +1918,29 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                 onSeatingConfirm={handleSeatingConfirm}
                 onSeatingBack={handleSeatingBack}
                 newlyDealtCardIds={newlyDealtCardIds}
+                showWrapUp={showWrapUp}
+                onWrapUp={handleWrapUp}
               />
             )}
           </div>
         </div>
       </div>
+
+      {/* Mobile slide-up drawer — players & log (hidden on desktop via lg:hidden in trigger) */}
+      {mobileDrawerOpen && (
+        <MobileDrawer
+          onClose={() => setMobileDrawerOpen(false)}
+          gameState={gameState}
+          currentPlayer={gameState.players[currentPlayerIndex]}
+          playerCount={playerCount}
+          logEntries={logEntries}
+          seatingQueue={seatingQueue}
+          seatingCurrentPlayerId={seatingPlayerOrder[seatingCurrentIdx]}
+          seatingSelectedGangsterId={seatingSelectedGangsterId}
+          onSeatingGangsterSelect={handleSeatingGangsterSelect}
+        />
+      )}
     </div>
+    </>
   )
 }

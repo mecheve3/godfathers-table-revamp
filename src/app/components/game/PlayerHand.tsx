@@ -79,7 +79,7 @@ export default function PlayerHand({ cards, onSelectCard, selectedCardId, disabl
   return (
     <div className="w-full">
       {isDiscardMode && <h3 className="font-semibold mb-2 text-[#F5AC0E]">{t("game.discard.header")}</h3>}
-      <div className="flex flex-wrap gap-2 justify-center">
+      <div className="flex flex-wrap gap-1.5 lg:gap-2 justify-center">
         {cards.map((card) => {
           const isSecondDisplacementLocked = gameState.currentPhase === "SECOND_DISPLACEMENT" && card.type !== "DISPLACEMENT"
           const isPlayable = isDiscardMode || (playableCards[card.id] && !isSecondDisplacementLocked)
@@ -94,7 +94,7 @@ export default function PlayerHand({ cards, onSelectCard, selectedCardId, disabl
                 disabled={isSelected ? false : (disabled || (!isDiscardMode && (!playableCards[card.id] || isSecondDisplacementLocked)))}
                 title={!isPlayable && !isDiscardMode ? t("game.no_gangsters") : ""}
                 className={cn(
-                  `w-20 h-28 rounded-md border-2 ${borderColor} overflow-hidden transition-all block`,
+                  `w-14 h-20 lg:w-20 lg:h-28 rounded-md border-2 ${borderColor} overflow-hidden transition-all block`,
                   isSelected ? "ring-2 ring-white scale-105" : "",
                   isDiscardMode ? "hover:ring-2 hover:ring-red-500 cursor-pointer" : "",
                   !isPlayable && !isDiscardMode ? "opacity-50 grayscale cursor-not-allowed" : !isDiscardMode ? "hover:scale-105 cursor-pointer" : "",
@@ -111,7 +111,8 @@ export default function PlayerHand({ cards, onSelectCard, selectedCardId, disabl
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); setInfoCardId(card.id) }}
-                className="absolute bottom-1 right-1 w-5 h-5 rounded-full bg-[#F5AC0E]/90 text-[#2B1710] text-[10px] font-bold flex items-center justify-center hover:bg-[#F5AC0E] transition-colors z-10 leading-none"
+                className="absolute bottom-0.5 right-0.5 w-5 h-5 lg:w-5 lg:h-5 rounded-full bg-[#F5AC0E]/90 text-[#2B1710] text-[10px] font-bold flex items-center justify-center hover:bg-[#F5AC0E] active:bg-[#F5AC0E] transition-colors z-10 leading-none"
+                style={{ minWidth: 20, minHeight: 20 }}
                 title={t("card.info")}
               >
                 ?

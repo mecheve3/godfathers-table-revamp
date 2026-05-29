@@ -23,23 +23,25 @@ interface BoardPositionProps {
   previewGangster?: { imageSrc: string; playerId: string } | null
   /** Show a purple glow — gangster already selected as a sleeping-pill target */
   pillSelected?: boolean
+  /** Replace idle sprite with action pose for gun (variant 2) or knife (variant 3) */
+  poseOverride?: { variant: 2 | 3; flipX: boolean } | null
 }
 
-const positionMap: Record<number, { x: number; y: number }> = {
+export const positionMap: Record<number, { x: number; y: number }> = {
   1: { x: 6.5, y: 50 },
   2: { x: 7.5, y: 30 },
-  3: { x: 13.5, y: 21.5 },
-  4: { x: 21.5, y: 21 },
-  5: { x: 28, y: 21 },
-  6: { x: 34, y: 21 },
-  7: { x: 40.5, y: 21 },
-  8: { x: 47, y: 21 },
-  9: { x: 53, y: 21 },
-  10: { x: 59.5, y: 21 },
-  11: { x: 66, y: 21 },
-  12: { x: 72, y: 21 },
-  13: { x: 78.5, y: 21 },
-  14: { x: 86.5, y: 21.5 },
+  3: { x: 13.5, y: 24.5 },
+  4: { x: 21.5, y: 24 },
+  5: { x: 28, y: 24 },
+  6: { x: 34, y: 24 },
+  7: { x: 40.5, y: 24 },
+  8: { x: 47, y: 24 },
+  9: { x: 53, y: 24 },
+  10: { x: 59.5, y: 24 },
+  11: { x: 66, y: 24 },
+  12: { x: 72, y: 24 },
+  13: { x: 78.5, y: 24 },
+  14: { x: 86.5, y: 24.5 },
   15: { x: 92.5, y: 30 },
   16: { x: 93.5, y: 50 },
   17: { x: 92.5, y: 70 },
@@ -86,12 +88,13 @@ const getGangsterTypeName = (type: GangsterType) => {
   }
 }
 
-const getGangsterImage = (playerId: string, type: GangsterType) =>
-  `/images/players/${getTeam(playerId)}/${getGangsterTypeName(type)}.png`
+const getGangsterImage = (playerId: string, type: GangsterType, variant?: 2 | 3) =>
+  `/images/players/${getTeam(playerId)}/${getGangsterTypeName(type)}${variant ?? ""}.png`
 
 export default function BoardPosition({
   position, gameState, selected, highlighted, onClick, animClass, spriteOverlay, spriteLarge,
   onCakeClick, draggable, onDragStart, onDragOver, onDrop, hideOccupant, previewGangster, pillSelected,
+  poseOverride,
 }: BoardPositionProps) {
   const [cakes, setCakes] = useState<typeof gameState.cakes>([])
   const style = getPositionStyle(position.id)
@@ -109,7 +112,8 @@ export default function BoardPosition({
     if (player) {
       const gangster = player.gangsters.find((g) => g.id === occupiedBy.gangsterId)
       if (gangster) {
-        gangsterDetails = { type: gangster.type, imageSrc: getGangsterImage(occupiedBy.playerId, gangster.type) }
+        const variant = poseOverride?.variant
+        gangsterDetails = { type: gangster.type, imageSrc: getGangsterImage(occupiedBy.playerId, gangster.type, variant) }
         isSleeping = gangster.status === "sleeping"
       }
     }
@@ -156,7 +160,10 @@ export default function BoardPosition({
             alt={gangsterDetails.type}
             className={`w-full h-full object-contain pointer-events-none select-none
               ${isSleeping ? "opacity-50 saturate-50" : ""}`}
-            style={glowFilter ? { filter: glowFilter } : undefined}
+            style={{
+              ...(glowFilter ? { filter: glowFilter } : {}),
+              ...(poseOverride?.flipX ? { transform: "scaleX(-1)" } : {}),
+            }}
             draggable={false}
           />
         )}

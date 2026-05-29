@@ -132,3 +132,27 @@
   background-color: #4b4b4b;
   border-radius: 2px;
 }
+
+/* ── Portrait orientation enforcement ──────────────────────────────────────── */
+/* Blocks portrait only on phones/small tablets (< 1024 px).                  */
+/* Desktops and landscape iPads are unaffected.                                */
+@media screen and (orientation: portrait) and (max-width: 1023px) {
+  .portrait-guard { display: flex !important; }
+  .game-root      { display: none !important; }
+}
+
+/* ── Mobile slide-up drawer ─────────────────────────────────────────────────── */
+@keyframes drawer-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0);    }
+}
+.drawer-slide-up {
+  animation: drawer-up 0.22s ease-out forwards;
+}
+
+/* ── Prevent iOS bounce scroll on the game canvas ──────────────────────────── */
+.game-root {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}

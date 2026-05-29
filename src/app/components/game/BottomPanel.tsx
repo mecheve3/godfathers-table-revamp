@@ -35,6 +35,8 @@ interface BottomPanelProps {
   gameMode?: "hotseat" | "solo" | "multiplayer"
   botLog?: string[]
   newlyDealtCardIds?: string[]
+  showWrapUp?: boolean
+  onWrapUp?: () => void
 }
 
 export default function BottomPanel({
@@ -44,7 +46,7 @@ export default function BottomPanel({
   validGangsters, validTargets, canPlaySecondDisplacement, gameState, secondActionTaken,
   pillsApplied, pendingPillTargetIds, onSkipPill, seatingCurrentPlayerName,
   seatingSelectedGangsterId, onSeatingConfirm, onSeatingBack, humanPlayer, gameMode, botLog,
-  newlyDealtCardIds = [],
+  newlyDealtCardIds = [], showWrapUp, onWrapUp,
 }: BottomPanelProps) {
   const [logExpanded, setLogExpanded] = useState(false)
   const { t } = useLang()
@@ -72,8 +74,8 @@ export default function BottomPanel({
   )
 
   return (
-    <div className="bg-gradient-to-b from-[#3D2314] to-[#2B1710] border-t border-zinc-700 w-full flex-shrink-0 py-3 px-4">
-      <div className="flex flex-col md:flex-row gap-4 justify-between">
+    <div className="bg-gradient-to-b from-[#3D2314] to-[#2B1710] border-t border-zinc-700 w-full flex-shrink-0 py-1.5 px-2 lg:py-3 lg:px-4">
+      <div className="flex flex-row gap-2 lg:gap-4 justify-between items-start">
         {/* Left — hand + discard */}
         <div className="flex flex-row items-center gap-2">
           <PlayerHand
@@ -92,21 +94,21 @@ export default function BottomPanel({
             playerId={handPlayer.id}
           />
           {!isBotTurn && gamePhase === "SELECT_CARD" && !secondActionTaken && (
-            <div className="mt-2 md:mt-0 md:ml-2">
+            <div className="ml-1.5">
               <Btn onClick={onSelectDiscardCard}>{t("btn.discard")}</Btn>
             </div>
           )}
         </div>
 
         {/* Right — action interface */}
-        <div className="md:w-1/2 max-w-[calc(25vw-1rem)]">
-          <div className="mb-3 text-center">
-            <span className="font-semibold text-[#F5AC0E]">{t("game.turn", { name: currentPlayer.name })}</span>
+        <div className="flex-1 min-w-0 lg:max-w-[320px]">
+          <div className="mb-1 lg:mb-3 text-center">
+            <span className="font-semibold text-[#F5AC0E] text-xs lg:text-sm truncate block">{t("game.turn", { name: currentPlayer.name })}</span>
             {isBotTurn && gameMode !== "multiplayer" && <span className="ml-2 text-xs text-zinc-400 animate-pulse">{t("game.bot.thinking")}</span>}
             {isBotTurn && gameMode === "multiplayer" && <span className="ml-2 text-xs text-zinc-400 animate-pulse">{t("game.bot.waiting")}</span>}
           </div>
 
-          <div className="p-3 bg-gradient-to-b from-[#3D2314] to-[#2B1710] rounded-md mb-3 text-[#F5AC0E] text-sm">
+          <div className="p-1.5 lg:p-3 bg-gradient-to-b from-[#3D2314] to-[#2B1710] rounded-md mb-1.5 lg:mb-3 text-[#F5AC0E] text-xs lg:text-sm">
             {isBotTurn && gameMode !== "multiplayer" && <p className="text-center text-zinc-400">{t("game.bot.turn")}</p>}
             {isBotTurn && gameMode === "multiplayer" && <p className="text-center text-zinc-400">{t("game.mp.waiting", { name: currentPlayer.name })}</p>}
             {!isBotTurn && gamePhase === "SELECT_CARD" && <p className="text-center">{t("game.select_card")}</p>}
@@ -206,6 +208,9 @@ export default function BottomPanel({
                 <Btn onClick={() => onSeatingConfirm?.()} wide>{t("btn.confirm")}</Btn>
                 <Btn onClick={() => onSeatingBack?.()} variant="secondary" wide>{t("btn.back")}</Btn>
               </div>
+            )}
+            {showWrapUp && (
+              <Btn onClick={() => onWrapUp?.()} variant="secondary" wide>{t("game.wrapup.btn")}</Btn>
             )}
           </div>
         </div>
