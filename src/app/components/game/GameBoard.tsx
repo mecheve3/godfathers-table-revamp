@@ -240,6 +240,9 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   // ── Action-pose overrides: replace idle sprite during gun/knife animations ──
   const [seatPoseOverrides, setSeatPoseOverrides] = useState<Record<number, { variant: 2 | 3; flipX: boolean }>>({})
 
+  // ── Elimination snapshots: keep victim visible as a fading gray ghost ─────
+  const [eliminationSnapshots, setEliminationSnapshots] = useState<Record<number, string>>({})
+
   // ── Bullet projectile animations ─────────────────────────────────────────
   interface BulletData { id: string; fromX: number; fromY: number; toX: number; toY: number; angle: number; duration: number }
   const [bullets, setBullets] = useState<BulletData[]>([])
@@ -302,6 +305,22 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     const id = `b-${Date.now()}-${Math.random().toString(36).slice(2)}`
     setBullets((prev) => [...prev, { id, fromX: from.x, fromY: from.y, toX: to.x, toY: to.y, angle, duration }])
     setTimeout(() => setBullets((prev) => prev.filter((b) => b.id !== id)), duration + 120)
+  }, [])
+
+  /** Snapshot the character at `seatId` (from `fromState`) and render them as a fading gray ghost for `durationMs`. */
+  const snapshotElimination = useCallback((seatId: number, fromState: GameState, durationMs: number) => {
+    const pos = fromState.board.find((p) => p.id === seatId)
+    if (!pos?.occupiedBy) return
+    const player = fromState.players.find((p) => p.id === pos.occupiedBy!.playerId)
+    const gangster = player?.gangsters.find((g) => g.id === pos.occupiedBy!.gangsterId)
+    if (!gangster) return
+    const teamMap: Record<string, string> = { player1: "red", player2: "blue", player3: "yellow", player4: "green", player5: "orange", player6: "purple" }
+    const typeMap: Record<string, string> = { GODFATHER: "godfather", GUNMAN: "gunman", BLADESLINGER: "bladeslinger", THUG: "thug" }
+    const imageSrc = `/images/players/${teamMap[pos.occupiedBy!.playerId] ?? "gray"}/${typeMap[gangster.type as string] ?? "unknown"}.png`
+    setEliminationSnapshots((prev) => ({ ...prev, [seatId]: imageSrc }))
+    setTimeout(() => {
+      setEliminationSnapshots((prev) => { const next = { ...prev }; delete next[seatId]; return next })
+    }, durationMs)
   }, [])
 
   const gameStateRef = useRef<GameState>(gameState)
@@ -398,6 +417,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
               triggerPoseOverride(shooterSeat, 2, flipX, syncAnimDur)
               if (targetSeat != null) spawnBullet(shooterSeat, targetSeat)
               if (targetSeat != null && gameState.board.find((p) => p.id === targetSeat)?.occupiedBy != null) {
+                snapshotElimination(targetSeat, gameState, 900 + 1800)
                 setTimeout(() => triggerSeatSprite([targetSeat], ELIMINATION_SPRITE, 1800), 900)
               }
             } else if (act.cardType === "KNIFE") {
@@ -408,6 +428,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
               const syncAnimDur = act.seatAnim?.animClass === "seat-anim-danger" ? 2500 : 900
               triggerPoseOverride(shooterSeat, 3, flipX, syncAnimDur)
               if (targetSeat != null && gameState.board.find((p) => p.id === targetSeat)?.occupiedBy != null) {
+                snapshotElimination(targetSeat, gameState, 900 + 1800)
                 setTimeout(() => triggerSeatSprite([targetSeat], ELIMINATION_SPRITE, 1800), 900)
               }
             } else if (act.cardType === "PASS_CAKE") {
@@ -742,6 +763,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                 if (targetSeat != null) {
                   const preState = i === 0 ? latestState : (stateAfterFirstAction ?? latestState)
                   if (preState.board.find((p) => p.id === targetSeat)?.occupiedBy != null) {
+                    snapshotElimination(targetSeat, preState, 900 + 1800)
                     setTimeout(() => triggerSeatSprite([targetSeat], ELIMINATION_SPRITE, 1800), 900)
                   }
                 }
@@ -754,6 +776,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                 if (targetSeat != null) {
                   const preState = i === 0 ? latestState : (stateAfterFirstAction ?? latestState)
                   if (preState.board.find((p) => p.id === targetSeat)?.occupiedBy != null) {
+                    snapshotElimination(targetSeat, preState, 900 + 1800)
                     setTimeout(() => triggerSeatSprite([targetSeat], ELIMINATION_SPRITE, 1800), 900)
                   }
                 }
@@ -1276,7 +1299,6 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         triggerSeatSprite([feedback.seatIds[0]], spritePath, 900)
         setTimeout(() => triggerSeatSprite([feedback.seatIds[1]], spritePath, 900), 450)
       } else if (card.type === "GUN") {
-        // Pose sprite on shooter + animated bullet; elimination sprite on victim
         const [shooterSeat, targetSeat] = feedback.seatIds
         const fromPos = positionMap[shooterSeat]
         const toPos   = targetSeat != null ? positionMap[targetSeat] : null
@@ -1284,16 +1306,17 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         triggerPoseOverride(shooterSeat, 2, flipX, feedbackDur)
         if (targetSeat != null) spawnBullet(shooterSeat, targetSeat)
         if (targetSeat != null && gameState.board.find((p) => p.id === targetSeat)?.occupiedBy != null) {
+          snapshotElimination(targetSeat, gameState, 900 + 1800)
           setTimeout(() => triggerSeatSprite([targetSeat], ELIMINATION_SPRITE, 1800), 900)
         }
       } else if (card.type === "KNIFE") {
-        // Pose sprite on attacker; flip so character faces the victim
         const [shooterSeat, targetSeat] = feedback.seatIds
         const fromPos = positionMap[shooterSeat]
         const toPos   = targetSeat != null ? positionMap[targetSeat] : null
         const flipX   = toPos && fromPos ? toPos.x > fromPos.x : false
         triggerPoseOverride(shooterSeat, 3, flipX, feedbackDur)
         if (targetSeat != null && gameState.board.find((p) => p.id === targetSeat)?.occupiedBy != null) {
+          snapshotElimination(targetSeat, gameState, 900 + 1800)
           setTimeout(() => triggerSeatSprite([targetSeat], ELIMINATION_SPRITE, 1800), 900)
         }
       } else if (spritePath) {
@@ -1835,6 +1858,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                         spriteOverlay={seatSpriteOverlays[position.id]}
                         spriteLarge={seatSpriteOverlaysLarge[position.id] ?? false}
                         poseOverride={seatPoseOverrides[position.id] ?? null}
+                        eliminationSnapshot={eliminationSnapshots[position.id] ?? null}
                         onCakeClick={gameState.currentPhase === "SELECT_CAKE" ? handleDirectCakeClick : undefined}
                         draggable={
                           gameState.currentPhase === "SELECT_GANGSTER" &&

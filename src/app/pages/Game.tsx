@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { useMatch } from '../features/match/MatchContext'
@@ -10,6 +10,12 @@ export default function Game() {
   const navigate = useNavigate()
   const { config, clearConfig } = useMatch()
   const { t } = useLang()
+
+  // Guard: if there is no game config and this is not a multiplayer reconnect, go back to menu.
+  // This prevents the hotseat fallback from activating on page refresh or direct navigation.
+  useEffect(() => {
+    if (!config) navigate('/menu', { replace: true })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const slots = config?.slots ?? []
   const maxPlayers = (config?.settings?.maxPlayers ?? (slots.length > 0 ? slots.length : 3)) as 3 | 4 | 5 | 6
@@ -26,9 +32,12 @@ export default function Game() {
     ? slots.map((s, i) => s.kind === 'cpu' ? `player${i + 1}` : null).filter((id): id is string => id !== null)
     : undefined
 
+  // Never fall back to hotseat — if there are no CPU slots it means config was lost;
+  // the guard above will redirect to menu. Using 'solo' here keeps bots running
+  // as a last-resort safety net even if the guard fires on the next tick.
   const gameMode = isMultiplayer
     ? 'multiplayer'
-    : slots.some((s) => s.kind === 'cpu') ? 'solo' : 'hotseat'
+    : slots.some((s) => s.kind === 'cpu') ? 'solo' : 'solo'
 
   // ── Multiplayer state sync ─────────────────────────────────────────────────
 

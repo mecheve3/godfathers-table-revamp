@@ -25,6 +25,8 @@ interface BoardPositionProps {
   pillSelected?: boolean
   /** Replace idle sprite with action pose for gun (variant 2) or knife (variant 3) */
   poseOverride?: { variant: 2 | 3; flipX: boolean } | null
+  /** Image src of the gangster who was just eliminated — renders a fading gray ghost while the elimination animation plays */
+  eliminationSnapshot?: string | null
 }
 
 export const positionMap: Record<number, { x: number; y: number }> = {
@@ -94,15 +96,6 @@ const itemIconPositionMap: Record<number, { x: number; y: number }> = {
   30: { x: 12.5, y: 65 },
 }
 
-// Counterclockwise rotation (in degrees) applied to each seat's character sprite
-// so the gangster faces toward the centre of the table.
-const seatRotationMap: Record<number, number> = {
-  1: 90, 2: 45, 3: 30,
-  4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0, 12: 0, 13: 0,
-  14: 330, 15: 315, 16: 270, 17: 225, 18: 210,
-  19: 180, 20: 180, 21: 180, 22: 180, 23: 180, 24: 180, 25: 180, 26: 180, 27: 180, 28: 180,
-  29: 120, 30: 135,
-}
 
 const getPositionStyle = (positionId: number) => {
   const position = positionMap[positionId]
@@ -138,7 +131,7 @@ const getGangsterImage = (playerId: string, type: GangsterType, variant?: 2 | 3)
 export default function BoardPosition({
   position, gameState, selected, highlighted, onClick, animClass, spriteOverlay, spriteLarge,
   onCakeClick, draggable, onDragStart, onDragOver, onDrop, hideOccupant, previewGangster, pillSelected,
-  poseOverride,
+  poseOverride, eliminationSnapshot,
 }: BoardPositionProps) {
   const [cakes, setCakes] = useState<typeof gameState.cakes>([])
   const style = getPositionStyle(position.id)
@@ -164,9 +157,6 @@ export default function BoardPosition({
   }
 
   const effectivelyEmpty = !occupiedBy || hideOccupant
-
-  // Counterclockwise rotation so the sprite faces the table centre
-  const seatRotationDeg = seatRotationMap[position.id] ?? 0
 
   // Drop-shadow glows follow the PNG silhouette — no clipping mask needed.
   const glowFilter = pillSelected
@@ -207,15 +197,20 @@ export default function BoardPosition({
             alt={gangsterDetails.type}
             className={`w-full h-full object-contain pointer-events-none select-none
               ${isSleeping ? "opacity-50 saturate-50" : ""}`}
-            style={(() => {
-              const parts: string[] = []
-              if (seatRotationDeg !== 0) parts.push(`rotate(${-seatRotationDeg}deg)`)
-              if (poseOverride?.flipX) parts.push("scaleX(-1)")
-              return {
-                ...(glowFilter ? { filter: glowFilter } : {}),
-                ...(parts.length > 0 ? { transform: parts.join(" ") } : {}),
-              }
-            })()}
+            style={{
+              ...(glowFilter ? { filter: glowFilter } : {}),
+              ...(poseOverride?.flipX ? { transform: "scaleX(-1)" } : {}),
+            }}
+            draggable={false}
+          />
+        )}
+
+        {/* Eliminated character ghost — fades out in gray while the elimination sprite plays */}
+        {effectivelyEmpty && !hideOccupant && eliminationSnapshot && (
+          <img
+            src={eliminationSnapshot}
+            alt="eliminated"
+            className="w-full h-full object-contain pointer-events-none select-none elimination-victim"
             draggable={false}
           />
         )}
@@ -250,7 +245,7 @@ export default function BoardPosition({
       {/* Sprite overlay — sibling outside the hit-area so it's never clipped */}
       {spriteOverlay && (
         <div
-          className={`absolute pointer-events-none flex items-center justify-center ${spriteLarge ? "w-32 h-32 md:w-36 md:h-36" : "w-20 h-20 md:w-24 md:h-24"}`}
+          className={`absolute pointer-events-none flex items-center justify-center ${spriteLarge ? "w-32 h-32 md:w-36 md:h-36" : spriteOverlay?.includes('elimination') ? "w-10 h-10 md:w-12 md:h-12" : "w-20 h-20 md:w-24 md:h-24"}`}
           style={{ ...style, zIndex: 30 }}
         >
           <img

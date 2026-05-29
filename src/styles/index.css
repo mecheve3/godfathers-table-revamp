@@ -54,6 +54,16 @@
   animation: sprite-blink 280ms ease-in-out 3 forwards;
 }
 
+/* ── Eliminated victim ghost — character fades to gray then disappears ───────── */
+@keyframes elimination-victim {
+  0%   { opacity: 0.55; filter: grayscale(1); }
+  60%  { opacity: 0.35; filter: grayscale(1); }
+  100% { opacity: 0;    filter: grayscale(1); }
+}
+.elimination-victim {
+  animation: elimination-victim 2.7s ease-in forwards;
+}
+
 /* ── Elimination sprite — slower and larger than generic sprite-blink ────────── */
 @keyframes elimination-blink {
   0%   { opacity: 0; transform: scale(0.7);  }
