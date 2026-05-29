@@ -151,8 +151,8 @@ function BulletProjectile({ fromX, fromY, toX, toY, angle, duration }: { fromX: 
         top:  `${moved ? toY : fromY}%`,
         transform: `translate(-50%, -50%) rotate(${angle}deg)`,
         transition: moved ? `left ${duration}ms linear, top ${duration}ms linear` : "none",
-        width: 28,
-        height: 10,
+        width: 48,
+        height: 16,
       }}
     >
       <img src="/images/Sprites/bullet.png" alt="" className="w-full h-full object-contain" draggable={false} />
@@ -173,7 +173,9 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
 
   // Confirmation dialog state
   const [confirmAction, setConfirmAction] = useState<null | 'restart' | 'quit'>(null)
-  const [rulesOpen, setRulesOpen] = useState(false)
+  // Start as open — showRulebookOnMount is always set, so we match TopPanel's initial state
+  // and prevent the payment animation from firing while the player is still reading the rules.
+  const [rulesOpen, setRulesOpen] = useState(true)
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
 
   const getInitialState = (): GameState => {
@@ -392,7 +394,8 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
               const fromPos = positionMap[shooterSeat]
               const toPos   = targetSeat != null ? positionMap[targetSeat] : null
               const flipX   = toPos && fromPos ? toPos.x < fromPos.x : false
-              triggerPoseOverride(shooterSeat, 2, flipX, 900)
+              const syncAnimDur = act.seatAnim?.animClass === "seat-anim-danger" ? 2500 : 900
+              triggerPoseOverride(shooterSeat, 2, flipX, syncAnimDur)
               if (targetSeat != null) spawnBullet(shooterSeat, targetSeat)
               if (targetSeat != null && gameState.board.find((p) => p.id === targetSeat)?.occupiedBy != null) {
                 setTimeout(() => triggerSeatSprite([targetSeat], ELIMINATION_SPRITE, 1800), 900)
@@ -401,8 +404,9 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
               const [shooterSeat, targetSeat] = seatIds
               const fromPos = positionMap[shooterSeat]
               const toPos   = targetSeat != null ? positionMap[targetSeat] : null
-              const flipX   = toPos && fromPos ? toPos.x < fromPos.x : false
-              triggerPoseOverride(shooterSeat, 3, flipX, 900)
+              const flipX   = toPos && fromPos ? toPos.x > fromPos.x : false
+              const syncAnimDur = act.seatAnim?.animClass === "seat-anim-danger" ? 2500 : 900
+              triggerPoseOverride(shooterSeat, 3, flipX, syncAnimDur)
               if (targetSeat != null && gameState.board.find((p) => p.id === targetSeat)?.occupiedBy != null) {
                 setTimeout(() => triggerSeatSprite([targetSeat], ELIMINATION_SPRITE, 1800), 900)
               }
@@ -724,22 +728,38 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
             // Sprite overlays for bot actions — mirrors human-turn logic
             const cardType = playedCards[i]?.cardType
             const spritePath = cardType ? CARD_SPRITE[cardType] : undefined
-            if (spritePath && summary.seatIds.length > 0) {
-              if (cardType === "DISPLACEMENT" && summary.seatIds.length >= 2) {
+            if (summary.seatIds.length > 0) {
+              if (spritePath && cardType === "DISPLACEMENT" && summary.seatIds.length >= 2) {
                 triggerSeatSprite([summary.seatIds[0]], spritePath, 900)
                 setTimeout(() => triggerSeatSprite([summary.seatIds[1]], spritePath, 900), 450)
-              } else if (cardType === "KNIFE" || cardType === "GUN") {
-                triggerSeatSprite([summary.seatIds[0]], spritePath, 900)
-                if (summary.seatIds.length >= 2) {
-                  const targetId = summary.seatIds[1]
+              } else if (cardType === "GUN") {
+                const [shooterSeat, targetSeat] = summary.seatIds
+                const fromPos = positionMap[shooterSeat]
+                const toPos   = targetSeat != null ? positionMap[targetSeat] : null
+                const flipX   = toPos && fromPos ? toPos.x < fromPos.x : false
+                triggerPoseOverride(shooterSeat, 2, flipX, DANGER_ANIM_MS)
+                if (targetSeat != null) spawnBullet(shooterSeat, targetSeat)
+                if (targetSeat != null) {
                   const preState = i === 0 ? latestState : (stateAfterFirstAction ?? latestState)
-                  if (preState.board.find((p) => p.id === targetId)?.occupiedBy != null) {
-                    setTimeout(() => triggerSeatSprite([targetId], ELIMINATION_SPRITE, 1800), 900)
+                  if (preState.board.find((p) => p.id === targetSeat)?.occupiedBy != null) {
+                    setTimeout(() => triggerSeatSprite([targetSeat], ELIMINATION_SPRITE, 1800), 900)
                   }
                 }
-              } else if (cardType === "PASS_CAKE") {
+              } else if (cardType === "KNIFE") {
+                const [shooterSeat, targetSeat] = summary.seatIds
+                const fromPos = positionMap[shooterSeat]
+                const toPos   = targetSeat != null ? positionMap[targetSeat] : null
+                const flipX   = toPos && fromPos ? toPos.x > fromPos.x : false
+                triggerPoseOverride(shooterSeat, 3, flipX, DANGER_ANIM_MS)
+                if (targetSeat != null) {
+                  const preState = i === 0 ? latestState : (stateAfterFirstAction ?? latestState)
+                  if (preState.board.find((p) => p.id === targetSeat)?.occupiedBy != null) {
+                    setTimeout(() => triggerSeatSprite([targetSeat], ELIMINATION_SPRITE, 1800), 900)
+                  }
+                }
+              } else if (spritePath && cardType === "PASS_CAKE") {
                 triggerSeatSprite([summary.seatIds[0]], spritePath, 900)
-              } else if (cardType === "EXPLODE_CAKE") {
+              } else if (spritePath && cardType === "EXPLODE_CAKE") {
                 triggerSeatSprite([summary.seatIds[0]], spritePath, 900, true)
                 const preState = i === 0 ? latestState : (stateAfterFirstAction ?? latestState)
                 const postState = stateAfterFirstAction && i === 0 ? stateAfterFirstAction : newState
@@ -750,7 +770,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                 if (eliminatedSeats.length > 0) {
                   setTimeout(() => triggerSeatSprite(eliminatedSeats, ELIMINATION_SPRITE, 1800), 900)
                 }
-              } else {
+              } else if (spritePath) {
                 triggerSeatSprite(summary.seatIds, spritePath, 900)
               }
             }
@@ -1261,18 +1281,18 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         const fromPos = positionMap[shooterSeat]
         const toPos   = targetSeat != null ? positionMap[targetSeat] : null
         const flipX   = toPos && fromPos ? toPos.x < fromPos.x : false
-        triggerPoseOverride(shooterSeat, 2, flipX, 900)
+        triggerPoseOverride(shooterSeat, 2, flipX, feedbackDur)
         if (targetSeat != null) spawnBullet(shooterSeat, targetSeat)
         if (targetSeat != null && gameState.board.find((p) => p.id === targetSeat)?.occupiedBy != null) {
           setTimeout(() => triggerSeatSprite([targetSeat], ELIMINATION_SPRITE, 1800), 900)
         }
       } else if (card.type === "KNIFE") {
-        // Pose sprite on attacker (flipped to face victim); elimination sprite on victim
+        // Pose sprite on attacker; flip so character faces the victim
         const [shooterSeat, targetSeat] = feedback.seatIds
         const fromPos = positionMap[shooterSeat]
         const toPos   = targetSeat != null ? positionMap[targetSeat] : null
-        const flipX   = toPos && fromPos ? toPos.x < fromPos.x : false
-        triggerPoseOverride(shooterSeat, 3, flipX, 900)
+        const flipX   = toPos && fromPos ? toPos.x > fromPos.x : false
+        triggerPoseOverride(shooterSeat, 3, flipX, feedbackDur)
         if (targetSeat != null && gameState.board.find((p) => p.id === targetSeat)?.occupiedBy != null) {
           setTimeout(() => triggerSeatSprite([targetSeat], ELIMINATION_SPRITE, 1800), 900)
         }

@@ -30,18 +30,18 @@ interface BoardPositionProps {
 export const positionMap: Record<number, { x: number; y: number }> = {
   1: { x: 6.5, y: 50 },
   2: { x: 7.5, y: 30 },
-  3: { x: 13.5, y: 24.5 },
-  4: { x: 21.5, y: 24 },
-  5: { x: 28, y: 24 },
-  6: { x: 34, y: 24 },
-  7: { x: 40.5, y: 24 },
-  8: { x: 47, y: 24 },
-  9: { x: 53, y: 24 },
+  3: { x: 13.5, y: 19.5 },
+  4: { x: 21.5, y: 20 },
+  5: { x: 28, y: 20 },
+  6: { x: 34, y: 20 },
+  7: { x: 40.5, y: 20 },
+  8: { x: 47, y: 20 },
+  9: { x: 53, y: 20 },
   10: { x: 59.5, y: 24 },
   11: { x: 66, y: 24 },
   12: { x: 72, y: 24 },
-  13: { x: 78.5, y: 24 },
-  14: { x: 86.5, y: 24.5 },
+  13: { x: 78.5, y: 20 },
+  14: { x: 86.5, y: 19.5 },
   15: { x: 92.5, y: 30 },
   16: { x: 93.5, y: 50 },
   17: { x: 92.5, y: 70 },
@@ -58,6 +58,40 @@ export const positionMap: Record<number, { x: number; y: number }> = {
   28: { x: 21.5, y: 80 },
   29: { x: 13.5, y: 79.5 },
   30: { x: 7.5, y: 70 },
+}
+
+// Inward positions for on-table items (cake bombs) — offset toward the table centre
+const itemIconPositionMap: Record<number, { x: number; y: number }> = {
+  1: { x: 12.5, y: 50 },
+  2: { x: 12.5, y: 35 },
+  3: { x: 16.5, y: 31 },
+  4: { x: 21.5, y: 31 },
+  5: { x: 28, y: 31 },
+  6: { x: 34, y: 31 },
+  7: { x: 40.5, y: 31 },
+  8: { x: 47, y: 31 },
+  9: { x: 53, y: 31 },
+  10: { x: 59.5, y: 31 },
+  11: { x: 66, y: 31 },
+  12: { x: 72, y: 31 },
+  13: { x: 78.5, y: 31 },
+  14: { x: 86.5, y: 31 },
+  15: { x: 87.5, y: 35 },
+  16: { x: 87.5, y: 50 },
+  17: { x: 87.5, y: 65 },
+  18: { x: 86.5, y: 68 },
+  19: { x: 78.5, y: 68 },
+  20: { x: 72, y: 68 },
+  21: { x: 66, y: 68 },
+  22: { x: 59.5, y: 68 },
+  23: { x: 53, y: 68 },
+  24: { x: 47, y: 68 },
+  25: { x: 40.5, y: 68 },
+  26: { x: 34, y: 68 },
+  27: { x: 28, y: 68 },
+  28: { x: 21.5, y: 68 },
+  29: { x: 16.5, y: 68 },
+  30: { x: 12.5, y: 65 },
 }
 
 const getPositionStyle = (positionId: number) => {
@@ -210,15 +244,19 @@ export default function BoardPosition({
         </div>
       )}
 
-      {/* Cake bombs */}
-      {cakes.map((cake, index) => (
+      {/* Cake bombs — placed at the inward table-centre position so they sit on the table, not on top of the character */}
+      {cakes.map((cake, index) => {
+        const iconPos = itemIconPositionMap[position.id]
+        const iconStyle = iconPos
+          ? { left: `${iconPos.x}%`, top: `${iconPos.y}%`, transform: `translate(${index === 0 ? "-120%" : "20%"}, -50%)` }
+          : { left: `calc(${style.left} + ${index === 0 ? "-20px" : "20px"})`, top: `calc(${style.top} + ${index === 0 ? "-20px" : "20px"})` }
+        return (
         <div
           key={cake.id}
           className="absolute w-8 h-8 rounded-full border-2 border-white flex items-center justify-center cursor-pointer cake-bomb-blink overflow-hidden"
           style={{
             backgroundColor: cake.color,
-            left: `calc(${style.left} + ${index === 0 ? "-20px" : "20px"})`,
-            top: `calc(${style.top} + ${index === 0 ? "-20px" : "20px"})`,
+            ...iconStyle,
             zIndex: 5,
           }}
           title={`Cake placed on round ${cake.roundPlaced} — explodes next round`}
@@ -231,7 +269,8 @@ export default function BoardPosition({
             draggable={false}
           />
         </div>
-      ))}
+        )
+      })}
     </>
   )
 }
