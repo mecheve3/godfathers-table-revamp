@@ -292,11 +292,12 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     }, durationMs)
   }, [])
 
-  /** Spawn a bullet that travels from `fromSeatId` to `toSeatId` at ~800 px/s. */
-  const spawnBullet = useCallback((fromSeatId: number, toSeatId: number) => {
+  /** Spawn a bullet that travels from `fromSeatId` to `toSeatId` at ~800 px/s.
+   *  Returns the travel duration in ms so callers can sync follow-up effects. */
+  const spawnBullet = useCallback((fromSeatId: number, toSeatId: number): number => {
     const from = positionMap[fromSeatId]
     const to   = positionMap[toSeatId]
-    if (!from || !to) return
+    if (!from || !to) return 900
     const boardEl = boardContainerRef.current
     const boardW  = boardEl?.offsetWidth  ?? 800
     const boardH  = boardEl?.offsetHeight ?? 400
@@ -308,6 +309,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     const id = `b-${Date.now()}-${Math.random().toString(36).slice(2)}`
     setBullets((prev) => [...prev, { id, fromX: from.x, fromY: from.y, toX: to.x, toY: to.y, angle, duration }])
     setTimeout(() => setBullets((prev) => prev.filter((b) => b.id !== id)), duration + 120)
+    return duration
   }, [])
 
   /** Snapshot the character at `seatId` (from `fromState`) and render them as a fading gray ghost for `durationMs`. */
@@ -418,10 +420,12 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
               const flipX   = toPos && fromPos ? toPos.x < fromPos.x : false
               const syncAnimDur = act.seatAnim?.animClass === "seat-anim-danger" ? 2500 : 900
               triggerPoseOverride(shooterSeat, 2, flipX, syncAnimDur)
-              if (targetSeat != null) spawnBullet(shooterSeat, targetSeat)
-              if (targetSeat != null && gameState.board.find((p) => p.id === targetSeat)?.occupiedBy != null) {
-                snapshotElimination(targetSeat, gameState, 900 + 1800)
-                setTimeout(() => triggerSeatSprite([targetSeat], ELIMINATION_SPRITE, 1800), 900)
+              if (targetSeat != null) {
+                const bulletMs = spawnBullet(shooterSeat, targetSeat)
+                if (gameState.board.find((p) => p.id === targetSeat)?.occupiedBy != null) {
+                  snapshotElimination(targetSeat, gameState, bulletMs + 1800)
+                  setTimeout(() => triggerSeatSprite([targetSeat], ELIMINATION_SPRITE, 1800), bulletMs)
+                }
               }
             } else if (act.cardType === "KNIFE") {
               const [shooterSeat, targetSeat] = seatIds
@@ -554,6 +558,8 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   }, [currentPlayerIndex, gameState]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    // Don't start processing turns while the how-to-play screen is still open
+    if (rulesOpen) return
     if (gameState.currentPhase === "SELECT_CARD" && !gameOver) {
       const currentPlayer = gameState.players[currentPlayerIndex]
       // Prevent duplicate payment when phase bounces back to SELECT_CARD (e.g. cancel action)
@@ -590,7 +596,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         suppressPaymentLogRef.current = false
       }
     }
-  }, [currentPlayerIndex, gameState.currentPhase]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentPlayerIndex, gameState.currentPhase, rulesOpen]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (["SEATING_SELECT_GANGSTER", "SEATING_SELECT_SEAT", "SEATING_CONFIRM"].includes(gameState.currentPhase)) return
@@ -718,6 +724,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
 
   useEffect(() => {
     if ((!shouldRunBots || gameMode === "hotseat") || gameOver) return
+    if (rulesOpen) return  // wait for instructions to close before bots start
     const currentPlayer = gameState.players[currentPlayerIndex]
     if (!botPlayerIds.includes(currentPlayer.id)) return
     if (gameState.currentPhase !== "SELECT_CARD") return
@@ -762,12 +769,12 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                 const toPos   = targetSeat != null ? positionMap[targetSeat] : null
                 const flipX   = toPos && fromPos ? toPos.x < fromPos.x : false
                 triggerPoseOverride(shooterSeat, 2, flipX, DANGER_ANIM_MS)
-                if (targetSeat != null) spawnBullet(shooterSeat, targetSeat)
                 if (targetSeat != null) {
+                  const bulletMs = spawnBullet(shooterSeat, targetSeat)
                   const preState = i === 0 ? latestState : (stateAfterFirstAction ?? latestState)
                   if (preState.board.find((p) => p.id === targetSeat)?.occupiedBy != null) {
-                    snapshotElimination(targetSeat, preState, 900 + 1800)
-                    setTimeout(() => triggerSeatSprite([targetSeat], ELIMINATION_SPRITE, 1800), 900)
+                    snapshotElimination(targetSeat, preState, bulletMs + 1800)
+                    setTimeout(() => triggerSeatSprite([targetSeat], ELIMINATION_SPRITE, 1800), bulletMs)
                   }
                 }
               } else if (cardType === "KNIFE") {
@@ -880,7 +887,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     }, 4000)
 
     return () => { clearTimeout(timer); setActiveBotPlayerId(null) }
-  }, [currentPlayerIndex, gameState.currentPhase, gameMode, gameOver]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentPlayerIndex, gameState.currentPhase, gameMode, gameOver, rulesOpen]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     // Run CPU auto-seating in solo AND multiplayer (on the host who runs bots)
@@ -1308,10 +1315,12 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         const toPos   = targetSeat != null ? positionMap[targetSeat] : null
         const flipX   = toPos && fromPos ? toPos.x < fromPos.x : false
         triggerPoseOverride(shooterSeat, 2, flipX, feedbackDur)
-        if (targetSeat != null) spawnBullet(shooterSeat, targetSeat)
-        if (targetSeat != null && gameState.board.find((p) => p.id === targetSeat)?.occupiedBy != null) {
-          snapshotElimination(targetSeat, gameState, 900 + 1800)
-          setTimeout(() => triggerSeatSprite([targetSeat], ELIMINATION_SPRITE, 1800), 900)
+        if (targetSeat != null) {
+          const bulletMs = spawnBullet(shooterSeat, targetSeat)
+          if (gameState.board.find((p) => p.id === targetSeat)?.occupiedBy != null) {
+            snapshotElimination(targetSeat, gameState, bulletMs + 1800)
+            setTimeout(() => triggerSeatSprite([targetSeat], ELIMINATION_SPRITE, 1800), bulletMs)
+          }
         }
       } else if (card.type === "KNIFE") {
         const [shooterSeat, targetSeat] = feedback.seatIds

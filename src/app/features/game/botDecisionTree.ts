@@ -216,6 +216,20 @@ function decideKnife(state: GameState, botId: string): BotPlay | null {
   }
 }
 
+/** Threat score for a player: prioritises the leader (most money, most gangsters, monopoly). */
+function playerThreat(state: GameState, targetId: string): number {
+  const target = state.players.find((p) => p.id === targetId)
+  if (!target) return 0
+  const alive = target.gangsters.filter((g) => g.position !== null).length
+  const businessItems = ["BAR", "GAMBLING_HOUSE", "STRIP_CLUB"]
+  const ownedBusiness = target.gangsters
+    .filter((g) => g.position !== null)
+    .map((g) => state.board.find((p) => p.id === g.position)?.item)
+    .filter((item): item is string => !!item && businessItems.includes(item))
+  const hasMonopoly = ownedBusiness.some((item) => ownedBusiness.filter((i) => i === item).length >= 2)
+  return target.money + alive * 500 + (hasMonopoly ? 2000 : 0)
+}
+
 function decideOrderCake(state: GameState, botId: string): BotPlay | null {
   const player = state.players.find((p) => p.id === botId)
   if (!player) return null
@@ -235,13 +249,24 @@ function decideOrderCake(state: GameState, botId: string): BotPlay | null {
     const enemies = countEnemiesInBlast(state, posId, botId)
     if (enemies === 0) continue
 
-    // Tie-break: prefer a direct center hit (enemy sits exactly at the cake seat)
-    // so the CPU targets the enemy directly rather than placing adjacently.
+    // Weight by the threat level of enemies in the blast zone — prefer targeting
+    // the leader (most money + gangsters + monopoly) over weaker players.
     const centerOccupant = state.board.find((p) => p.id === posId)?.occupiedBy
     const isDirectHit = !!(centerOccupant && centerOccupant.playerId !== botId)
-    // enemies×2 so a 2-enemy side-hit outranks a 1-enemy direct hit, but equal
-    // enemy counts resolve to the center placement.
-    const score = enemies * 2 + (isDirectHit ? 1 : 0)
+
+    // Collect all enemy player IDs in blast range (center + neighbors)
+    const blastPos = state.board.find((p) => p.id === posId)
+    const blastSeatIds = [posId, blastPos?.leftId, blastPos?.rightId].filter((id): id is number => id != null)
+    const enemyIdsInBlast = new Set<string>()
+    for (const seatId of blastSeatIds) {
+      const occ = state.board.find((p) => p.id === seatId)?.occupiedBy
+      if (occ && occ.playerId !== botId) enemyIdsInBlast.add(occ.playerId)
+    }
+    const maxThreat = Math.max(0, ...[...enemyIdsInBlast].map((id) => playerThreat(state, id)))
+
+    // enemies×2 ensures targeting two weak players can beat one strong one when
+    // the threat difference is small; threat breaks ties among equal enemy counts.
+    const score = enemies * 2 + (isDirectHit ? 1 : 0) + maxThreat / 1000
 
     if (score > bestScore) {
       bestScore = score
@@ -446,11 +471,15 @@ function scorePlacement(
   gangsterType: string,
   seat: Position,
   ownedTypes: Set<string>,
+  aliveCount: number,
 ): number {
   let score = 0
 
   if (seat.item === "CASH_REGISTER") {
-    score += 100
+    // Cash register only benefits a Godfather or a team with multiple gangsters.
+    // A lone non-godfather at a register earns nothing — prefer a direct business.
+    const registerValue = gangsterType === "GODFATHER" ? 100 : (aliveCount >= 2 ? 80 : 30)
+    score += registerValue
   } else if (seat.item && ownedTypes.has(seat.item)) {
     score += 85
   } else if (seat.item && SEATING_BUSINESS_ITEMS.includes(seat.item)) {
@@ -549,7 +578,8 @@ export function decideBotSeating(
       const seat = state.board.find((p) => p.id === seatId)
       if (!seat) continue
 
-      const score = scorePlacement(gangster.type, seat, ownedTypes)
+      const aliveCount = player.gangsters.filter((g) => g.position !== null).length + gangsterIdsToPlace.length
+      const score = scorePlacement(gangster.type, seat, ownedTypes, aliveCount)
       if (score > bestScore) {
         bestScore = score
         bestGangsterId = gangsterId
