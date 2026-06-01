@@ -2,7 +2,7 @@ import type { Card as CardType } from "../../features/game/types"
 import { clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 const cn = (...args: Parameters<typeof clsx>) => twMerge(clsx(...args))
-import { useEffect, useState } from "react"
+import { useMemo, useState } from "react"
 import { isCardPlayable } from "../../features/game/game-logic"
 import { useLang } from "../../context/LanguageContext"
 
@@ -63,16 +63,15 @@ const getPlayerBorderColor = (playerId: string): string => {
 }
 
 export default function PlayerHand({ cards, onSelectCard, selectedCardId, disabled = false, isDiscardMode = false, gameState, playerId, newlyDealtCardIds = [] }: PlayerHandProps) {
-  const [playableCards, setPlayableCards] = useState<Record<string, boolean>>({})
+  // Compute synchronously so there is never a stale-state flicker when turns change
+  const playableCards = useMemo(() => {
+    const status: Record<string, boolean> = {}
+    cards.forEach((card) => { status[card.id] = isCardPlayable(gameState, playerId, card.id) })
+    return status
+  }, [cards, gameState, playerId])
   const [infoCardId, setInfoCardId] = useState<string | null>(null)
   const borderColor = getPlayerBorderColor(playerId)
   const { t } = useLang()
-
-  useEffect(() => {
-    const status: Record<string, boolean> = {}
-    cards.forEach((card) => { status[card.id] = isCardPlayable(gameState, playerId, card.id) })
-    setPlayableCards(status)
-  }, [cards, gameState, playerId])
 
   const infoCard = infoCardId ? cards.find((c) => c.id === infoCardId) ?? null : null
 
@@ -97,7 +96,7 @@ export default function PlayerHand({ cards, onSelectCard, selectedCardId, disabl
                 disabled={isSelected ? false : (disabled || (!isDiscardMode && (!playableCards[card.id] || isSecondDisplacementLocked)))}
                 title={showDisabled ? t("game.no_gangsters") : ""}
                 className={cn(
-                  `w-14 h-20 lg:w-20 lg:h-28 rounded-md border-2 ${borderColor} overflow-hidden transition-all block`,
+                  `w-14 h-20 lg:w-20 lg:h-28 rounded-md border-2 ${borderColor} overflow-hidden transition-all block disabled:opacity-100`,
                   isSelected ? "ring-2 ring-white scale-105" : "",
                   isDiscardMode ? "hover:ring-2 hover:ring-red-500 cursor-pointer" : "",
                   showDisabled ? "opacity-50 grayscale cursor-not-allowed" : !isDiscardMode ? "hover:scale-105 cursor-pointer" : "",

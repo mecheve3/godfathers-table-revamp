@@ -1542,7 +1542,8 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
 
   const restartGame = () => {
     const newGameState = getInitialState()
-    setGameState(newGameState); setCurrentPlayerIndex(0); setSelectedGangsterIndex(null); setSelectedCardId(null)
+    const newStartIdx = gameMode === "multiplayer" ? 0 : Math.floor(Math.random() * playerCount)
+    setGameState(newGameState); setCurrentPlayerIndex(newStartIdx); setSelectedGangsterIndex(null); setSelectedCardId(null)
     setSelectedDirection(null); setTargetPositionId(null); setGameOver(false)
     setValidGangsters([]); setValidTargets([]); setValidCakes([]); setValidDirections([])
     setPillsApplied(0); setPendingPillTargetIds([]); setValidPillTargets([])
