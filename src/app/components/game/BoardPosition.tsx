@@ -27,6 +27,8 @@ interface BoardPositionProps {
   poseOverride?: { variant: 2 | 3; flipX: boolean } | null
   /** Image src of the gangster who was just eliminated — renders a fading gray ghost while the elimination animation plays */
   eliminationSnapshot?: string | null
+  /** True while any displacement drag is in progress — suppresses cake click-targets and keeps dragging character fully opaque */
+  isDragActive?: boolean
 }
 
 export const positionMap: Record<number, { x: number; y: number }> = {
@@ -131,7 +133,7 @@ const getGangsterImage = (playerId: string, type: GangsterType, variant?: 2 | 3)
 export default function BoardPosition({
   position, gameState, selected, highlighted, onClick, animClass, spriteOverlay, spriteLarge,
   onCakeClick, draggable, onDragStart, onDragOver, onDrop, hideOccupant, previewGangster, pillSelected,
-  poseOverride, eliminationSnapshot,
+  poseOverride, eliminationSnapshot, isDragActive,
 }: BoardPositionProps) {
   const [cakes, setCakes] = useState<typeof gameState.cakes>([])
   const style = getPositionStyle(position.id)
@@ -174,17 +176,20 @@ export default function BoardPosition({
         className={`group absolute w-[3.75rem] h-[3.75rem] md:w-[5.25rem] md:h-[5.25rem] flex items-center justify-center cursor-pointer
           ${highlighted ? "animate-pulse" : ""}
           ${animClass ?? ""}`}
-        style={style}
+        style={{ ...style, opacity: isDragActive && draggable ? 1 : undefined }}
         onClick={onClick}
         draggable={draggable}
         onDragStart={onDragStart ? (e) => {
           e.dataTransfer.effectAllowed = "move"
           const el = e.currentTarget
+          // Force the element fully opaque so the browser drag ghost is vibrant
+          const prevOpacity = el.style.opacity
+          el.style.opacity = '1'
           const clone = el.cloneNode(true) as HTMLElement
-          clone.style.cssText = `position:fixed;top:-9999px;left:-9999px;width:${el.offsetWidth}px;height:${el.offsetHeight}px;opacity:1;`
+          clone.style.cssText = `position:fixed;top:-9999px;left:-9999px;width:${el.offsetWidth}px;height:${el.offsetHeight}px;opacity:1;background:transparent;`
           document.body.appendChild(clone)
           e.dataTransfer.setDragImage(clone, el.offsetWidth / 2, el.offsetHeight / 2)
-          requestAnimationFrame(() => document.body.removeChild(clone))
+          requestAnimationFrame(() => { document.body.removeChild(clone); el.style.opacity = prevOpacity })
           onDragStart()
         } : undefined}
         onDragOver={onDragOver}
@@ -257,11 +262,11 @@ export default function BoardPosition({
         </div>
       )}
 
-      {/* Cake bombs — offset slightly from the character position */}
+      {/* Cake bombs — offset slightly from the character position; hidden from pointer events during drag */}
       {cakes.map((cake, index) => (
         <div
           key={cake.id}
-          className="absolute w-8 h-8 rounded-full border-2 border-white flex items-center justify-center cursor-pointer cake-bomb-blink overflow-hidden"
+          className={`absolute w-8 h-8 rounded-full border-2 border-white flex items-center justify-center cake-bomb-blink overflow-hidden ${isDragActive ? "pointer-events-none" : "cursor-pointer"}`}
           style={{
             backgroundColor: cake.color,
             left: `calc(${style.left} + ${index === 0 ? "-20px" : "20px"})`,

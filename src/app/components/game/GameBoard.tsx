@@ -207,9 +207,9 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   })
   const [seatingSelectedGangsterId, setSeatingSelectedGangsterId] = useState<string | null>(null)
   const [isInitialSeating, setIsInitialSeating] = useState<boolean>(seatingType === "manual")
-  // Randomise which player goes first while keeping the fixed red→blue→yellow→… order
+  // Randomise which player goes first — host broadcasts this so all clients agree
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState<number>(() =>
-    gameMode === "multiplayer" ? 0 : Math.floor(Math.random() * playerCount)
+    Math.floor(Math.random() * playerCount)
   )
   const [selectedGangsterIndex, setSelectedGangsterIndex] = useState<number | null>(null)
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
@@ -474,14 +474,15 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     if (socketStatus !== 'open') return
     if (initialBroadcastDone.current) return
     initialBroadcastDone.current = true
-    const firstBreakdown = seatingType !== "manual" ? calculatePaymentBreakdown(gameState.players[0], gameState.board) : null
+    const firstPlayer = gameState.players[currentPlayerIndex] ?? gameState.players[0]
+    const firstBreakdown = seatingType !== "manual" ? calculatePaymentBreakdown(firstPlayer, gameState.board) : null
     const firstPayment = firstBreakdown?.total ?? 0
     const paymentLogEntry: Omit<LogEntry, "id" | "highlighted"> | undefined = firstPayment > 0 && firstBreakdown
-      ? { round: gameState.turn, playerId: gameState.players[0].id, playerName: gameState.players[0].name, message: buildPaymentLog(gameState.players[0].name, firstPayment, t, firstBreakdown), type: "payment" }
+      ? { round: gameState.turn, playerId: firstPlayer.id, playerName: firstPlayer.name, message: buildPaymentLog(firstPlayer.name, firstPayment, t, firstBreakdown), type: "payment" }
       : undefined
     onTurnEnd?.({
       gameState,
-      currentPlayerIndex: 0,
+      currentPlayerIndex,  // broadcast the random starting index to all clients
       seatingPlayerOrder: seatingType === "manual" ? gameState.players.map((p) => p.id) : [],
       seatingCurrentIdx: 0,
       seatingQueue: seatingType === "manual"
@@ -920,7 +921,9 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       if (allDone) {
         if (isInitialSeating) {
           const finalState = initializeGame(currentState); finalState.currentPhase = "SELECT_CARD"
-          setIsInitialSeating(false); setSeatingQueue({}); setSeatingPlayerOrder([]); setCurrentPlayerIndex(0); setGameState(finalState)
+          const botSeatingStartIdx = Math.floor(Math.random() * playerCount)
+          setIsInitialSeating(false); setSeatingQueue({}); setSeatingPlayerOrder([]); setCurrentPlayerIndex(botSeatingStartIdx); setGameState(finalState)
+          onTurnEnd?.({ gameState: finalState, currentPlayerIndex: botSeatingStartIdx, seatingPlayerOrder: [], seatingCurrentIdx: 0, seatingQueue: {}, actions: [] })
         } else {
           const raidingPlayerIdx = currentState.players.findIndex((p) => p.id === seatingPlayerOrder[0])
           const nextIdx = getNextActivePlayerIndex(raidingPlayerIdx, currentState.players)
@@ -1464,8 +1467,9 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     if (allDone) {
       if (isInitialSeating) {
         const finalState = initializeGame(newGameState); finalState.currentPhase = "SELECT_CARD"
-        setIsInitialSeating(false); setSeatingQueue({}); setSeatingPlayerOrder([]); setCurrentPlayerIndex(0); setGameState(finalState)
-        onTurnEnd?.({ gameState: finalState, currentPlayerIndex: 0, seatingPlayerOrder: [], seatingCurrentIdx: 0, seatingQueue: {}, actions: [] })
+        const seatingStartIdx = Math.floor(Math.random() * playerCount)
+        setIsInitialSeating(false); setSeatingQueue({}); setSeatingPlayerOrder([]); setCurrentPlayerIndex(seatingStartIdx); setGameState(finalState)
+        onTurnEnd?.({ gameState: finalState, currentPlayerIndex: seatingStartIdx, seatingPlayerOrder: [], seatingCurrentIdx: 0, seatingQueue: {}, actions: [] })
       } else {
         const raidingPlayerIdx = newGameState.players.findIndex((p) => p.id === seatingPlayerOrder[0])
         const nextIdx = getNextActivePlayerIndex(raidingPlayerIdx, newGameState.players)
@@ -1704,11 +1708,15 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
               </button>
               <button
                 onClick={() => {
+                  const localName = localPlayerIndex !== undefined ? gameState.players[localPlayerIndex]?.name : gameState.players[currentPlayerIndex]?.name
                   if (gameMode === 'multiplayer') {
-                    const localName = localPlayerIndex !== undefined ? gameState.players[localPlayerIndex]?.name : gameState.players[currentPlayerIndex]?.name
+                    // In multiplayer, restart sends all clients back to menu — local state restart
+                    // would leave other clients orphaned in an already-started room they can't rejoin.
                     onAbandon?.('restart', localName ?? 'A player')
+                    onReturnToHome()
+                  } else {
+                    restartGame()
                   }
-                  restartGame()
                 }}
                 className="flex-1 py-3 rounded text-sm font-serif uppercase tracking-widest transition-colors"
                 style={{ background: '#1a2a1a', color: '#4ade80', border: '1px solid #4ade8044' }}
@@ -1874,6 +1882,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                         spriteLarge={seatSpriteOverlaysLarge[position.id] ?? false}
                         poseOverride={seatPoseOverrides[position.id] ?? null}
                         eliminationSnapshot={eliminationSnapshots[position.id] ?? null}
+                        isDragActive={draggingFromSeatId !== null}
                         onCakeClick={gameState.currentPhase === "SELECT_CAKE" ? handleDirectCakeClick : undefined}
                         draggable={
                           gameState.currentPhase === "SELECT_GANGSTER" &&
