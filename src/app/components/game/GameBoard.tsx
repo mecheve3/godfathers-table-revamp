@@ -16,6 +16,7 @@ import { buildActionLog, buildExplosionLog, buildPaymentLog } from "../../featur
 import type { LogEntry } from "../../features/game/types"
 import { track } from "../../../lib/analytics"
 import { captureError, setGameContext, setPlayerContext, trackAction } from "../../../lib/monitoring"
+// Sentry is initialised in main.tsx — monitoring.ts exports thin wrappers only
 import ActionPanel from "./ActionPanel"
 import BoardPosition, { positionMap } from "./BoardPosition"
 import TopPanel from "./TopPanel"

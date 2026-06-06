@@ -2,7 +2,7 @@ import { defineConfig } from 'vite'
 import path from 'path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-
+import { sentryVitePlugin } from '@sentry/vite-plugin'
 
 function figmaAssetResolver() {
   return {
@@ -23,20 +23,31 @@ export default defineConfig({
     // Tailwind is not being actively used – do not remove them
     react(),
     tailwindcss(),
+    // Uploads source maps to Sentry after every production build so stack
+    // traces show real file paths instead of minified bundle positions.
+    // Only active when SENTRY_AUTH_TOKEN is set (skipped in local dev).
+    ...(process.env.SENTRY_AUTH_TOKEN
+      ? [sentryVitePlugin({
+          org: process.env.SENTRY_ORG ?? "godfathers-table",
+          project: process.env.SENTRY_PROJECT ?? "godfathers-table-revamp",
+          authToken: process.env.SENTRY_AUTH_TOKEN,
+          telemetry: false,
+        })]
+      : []),
   ],
+  build: {
+    // Source maps are required for Sentry to show readable stack traces
+    sourcemap: true,
+  },
   resolve: {
     alias: {
-      // Alias @ to the src directory
       '@': path.resolve(__dirname, './src'),
     },
   },
 
-  // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
   assetsInclude: ['**/*.svg', '**/*.csv'],
 
   server: {
-    // Proxy /api/* and WS upgrades to the local Worker during development.
-    // When VITE_WORKER_URL is set in .env the app uses that absolute URL instead.
     proxy: {
       '/api': {
         target: 'http://localhost:8787',
