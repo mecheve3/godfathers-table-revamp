@@ -10,6 +10,8 @@ export interface RoomPlayer {
   type: PlayerType
   isHost: boolean
   isConnected: boolean
+  disconnectedAt?: number
+  consecutiveDisconnects: number
 }
 
 export interface RoomState {
@@ -28,6 +30,7 @@ export type ClientMessage =
   | { type: 'LEAVE_ROOM' }
   | { type: 'GAME_ACTION'; payload: unknown }
   | { type: 'ABANDON_GAME'; reason: 'restart' | 'quit'; playerName: string }
+  | { type: 'TURN_ACTIVITY' }
 
 export type ServerMessage =
   | { type: 'ROOM_STATE';      room: RoomState }
@@ -36,8 +39,27 @@ export type ServerMessage =
   | { type: 'GAME_STARTED';    room: RoomState }
   | { type: 'GAME_STATE';      payload: unknown }
   | { type: 'GAME_ABANDONED';  playerName: string; reason: 'restart' | 'quit' }
+  | { type: 'TURN_STARTED';    playerId: string; idleDeadline: number; completionDeadline?: number }
+  | { type: 'TURN_TIMEOUT';    timedOutPlayerId: string; timedOutPlayerName: string; reason: 'idle' | 'disconnect'; executorPlayerId: string | null; removePlayer: boolean }
+  | { type: 'PLAYER_REMOVED';  playerId: string; playerName: string }
   | { type: 'ERROR';           message: string }
 
 // ── Connection status ────────────────────────────────────────────────────────
 
 export type SocketStatus = 'idle' | 'connecting' | 'open' | 'closed' | 'error'
+
+// ── Turn timer info passed down to the game ──────────────────────────────────
+
+export interface TurnDeadlineInfo {
+  playerId: string
+  idleDeadline: number
+  completionDeadline?: number
+}
+
+export interface TurnTimeoutSignal {
+  timedOutPlayerId: string
+  timedOutPlayerName: string
+  reason: 'idle' | 'disconnect'
+  executorPlayerId: string | null
+  removePlayer: boolean
+}

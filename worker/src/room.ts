@@ -1,4 +1,4 @@
-import type { RoomState, RoomPlayer, ClientMessage, ServerMessage } from './types'
+import type { RoomState, RoomPlayer, TurnState, ClientMessage, ServerMessage } from './types'
 
 export interface Env {
   GAME_ROOM: DurableObjectNamespace
@@ -8,6 +8,11 @@ export interface Env {
 interface WsAttachment {
   playerId: string
 }
+
+const IDLE_TIMEOUT_MS       = 30_000   // 30 s to start a play
+const ACTIVITY_TIMEOUT_MS   = 90_000   // 1:30 to finish once started
+const GRACE_PERIOD_MS       = 30_000   // disconnect grace (same as idle timeout)
+const MAX_CONSECUTIVE_SKIPS = 3        // remove after this many consecutive disconnected turns
 
 /**
  * GameRoom — Cloudflare Durable Object
@@ -67,6 +72,7 @@ export class GameRoom implements DurableObject {
         type: 'HUMAN',
         isHost: true,
         isConnected: false,
+        consecutiveDisconnects: 0,
       }],
     }
 
@@ -115,10 +121,11 @@ export class GameRoom implements DurableObject {
       }
     }
 
-    // Mark existing player as connected, or register new joiner
+    // Mark existing player as (re)connected, or register new joiner
     const existing = room.players.find((p) => p.id === playerId)
     if (existing) {
       existing.isConnected = true
+      existing.disconnectedAt = undefined  // clear grace-period marker
     } else {
       const humanCount = room.players.filter((p) => p.type === 'HUMAN').length
       if (humanCount >= room.maxPlayers) {
@@ -132,20 +139,29 @@ export class GameRoom implements DurableObject {
         type: 'HUMAN',
         isHost: false,
         isConnected: true,
+        consecutiveDisconnects: 0,
       })
     }
 
     await this.saveRoom(room)
 
     if (room.status === 'LOBBY') {
-      // Broadcast full lobby state to all connected clients
       this.broadcastAll({ type: 'ROOM_STATE', room })
     } else {
-      // IN_GAME reconnect: send only to this client so they catch up
+      // IN_GAME reconnect — send state snapshot to the returning client
       this.send(server, { type: 'ROOM_STATE', room })
-      // Also send the latest game state so they can resume immediately
       const saved = await this.state.storage.get<unknown>('gameState')
       if (saved) this.send(server, { type: 'GAME_STATE', payload: saved })
+
+      // If it's this player's turn, re-send TURN_STARTED so they see their countdown
+      if (room.turnState?.playerId === playerId) {
+        this.send(server, {
+          type: 'TURN_STARTED',
+          playerId,
+          idleDeadline: room.turnState.idleDeadline,
+          completionDeadline: room.turnState.completionDeadline,
+        })
+      }
     }
 
     return new Response(null, { status: 101, webSocket: client })
@@ -192,6 +208,7 @@ export class GameRoom implements DurableObject {
             type: 'CPU',
             isHost: false,
             isConnected: true,
+            consecutiveDisconnects: 0,
           })
         }
 
@@ -206,10 +223,55 @@ export class GameRoom implements DurableObject {
           this.send(ws, { type: 'ERROR', message: 'Game not in progress' })
           return
         }
-        // Persist for reconnects
+
+        // Persist latest state for reconnects
         await this.state.storage.put('gameState', msg.payload)
         // Broadcast to everyone else
         this.broadcastAll({ type: 'GAME_STATE', payload: msg.payload }, ws)
+
+        // Derive the next player from the payload; start a turn timer if HUMAN
+        let nextTurnPlayerId: string | undefined
+        try {
+          const sync = msg.payload as {
+            currentPlayerIndex?: number
+            gameState?: { players?: Array<{ id?: string }> }
+          }
+          const idx = sync?.currentPlayerIndex
+          if (typeof idx === 'number') {
+            nextTurnPlayerId = sync?.gameState?.players?.[idx]?.id
+          }
+        } catch { /* payload shape mismatch — skip timer */ }
+
+        const nextRoomPlayer = nextTurnPlayerId
+          ? room.players.find(p => p.id === nextTurnPlayerId)
+          : null
+
+        if (nextRoomPlayer?.type === 'HUMAN') {
+          const idleDeadline = Date.now() + IDLE_TIMEOUT_MS
+          room.turnState = { playerId: nextRoomPlayer.id, idleDeadline }
+          await this.saveRoom(room)
+          await this.state.storage.setAlarm(idleDeadline)
+          this.broadcastAll({ type: 'TURN_STARTED', playerId: nextRoomPlayer.id, idleDeadline })
+        } else {
+          // CPU turn or unknown — clear any existing timer
+          if (room.turnState) {
+            room.turnState = undefined
+            await this.saveRoom(room)
+          }
+          try { await this.state.storage.deleteAlarm() } catch { /* no alarm pending */ }
+        }
+        break
+      }
+
+      case 'TURN_ACTIVITY': {
+        if (!room.turnState || room.turnState.playerId !== playerId) return
+        if (room.turnState.completionDeadline) return  // already extended
+
+        const completionDeadline = Date.now() + ACTIVITY_TIMEOUT_MS
+        room.turnState = { ...room.turnState, completionDeadline }
+        await this.saveRoom(room)
+        await this.state.storage.setAlarm(completionDeadline)
+        // No broadcast — the active client updates its own display immediately on send
         break
       }
 
@@ -239,6 +301,61 @@ export class GameRoom implements DurableObject {
     if (room) await this.handleDisconnect(ws, room)
   }
 
+  // ── Alarm: fires when a turn timer expires ─────────────────────────────────
+
+  async alarm(): Promise<void> {
+    const room = await this.getRoom()
+    if (!room || !room.turnState || room.status !== 'IN_GAME') return
+
+    const now = Date.now()
+    const { playerId, idleDeadline, completionDeadline } = room.turnState
+    const deadline = completionDeadline ?? idleDeadline
+
+    // Spurious early wakeup (e.g. alarm reset mid-turn) — reschedule at real deadline
+    if (now < deadline - 1000) {
+      await this.state.storage.setAlarm(deadline)
+      return
+    }
+
+    const player = room.players.find(p => p.id === playerId)
+    if (!player) {
+      room.turnState = undefined
+      await this.saveRoom(room)
+      return
+    }
+
+    // Determine whether the player was disconnected for this entire timeout window
+    const isDisconnect = !player.isConnected
+    player.consecutiveDisconnects = isDisconnect
+      ? (player.consecutiveDisconnects ?? 0) + 1
+      : 0
+
+    const removePlayer = player.consecutiveDisconnects >= MAX_CONSECUTIVE_SKIPS
+
+    // Find executor: prefer host (if connected), fall back to any connected human
+    const executor =
+      room.players.find(p => p.id === room.hostId && p.isConnected && p.id !== playerId) ??
+      room.players.find(p => p.type === 'HUMAN' && p.isConnected && p.id !== playerId) ??
+      null
+
+    // Clear turn state — executor will set a new one via their GAME_ACTION reply
+    room.turnState = undefined
+    await this.saveRoom(room)
+
+    this.broadcastAll({
+      type: 'TURN_TIMEOUT',
+      timedOutPlayerId: playerId,
+      timedOutPlayerName: player.name,
+      reason: isDisconnect ? 'disconnect' : 'idle',
+      executorPlayerId: executor?.id ?? null,
+      removePlayer,
+    })
+
+    if (removePlayer) {
+      this.broadcastAll({ type: 'PLAYER_REMOVED', playerId: player.id, playerName: player.name })
+    }
+  }
+
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   private async handleDisconnect(ws: WebSocket, room: RoomState): Promise<void> {
@@ -247,8 +364,15 @@ export class GameRoom implements DurableObject {
     if (!player) return
 
     player.isConnected = false
+    player.disconnectedAt = Date.now()
     await this.saveRoom(room)
-    // Notify remaining clients of updated state
+
+    // If this player's turn is active, the existing alarm will fire after the grace period.
+    // We keep the alarm running (don't extend to GRACE_PERIOD_MS) because the idle/completion
+    // deadlines already define how long any connected or disconnected player has.
+    // The alarm handler checks isConnected at fire time and classifies it as a disconnect skip.
+
+    // Notify remaining clients
     this.broadcastAll({ type: 'ROOM_STATE', room }, ws)
   }
 

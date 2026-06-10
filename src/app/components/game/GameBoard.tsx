@@ -16,6 +16,7 @@ import { buildActionLog, buildExplosionLog, buildPaymentLog } from "../../featur
 import type { LogEntry } from "../../features/game/types"
 import { track } from "../../../lib/analytics"
 import { captureError, setGameContext, setPlayerContext, trackAction } from "../../../lib/monitoring"
+import type { TurnDeadlineInfo, TurnTimeoutSignal } from "../../features/multiplayer/types"
 // Sentry is initialised in main.tsx — monitoring.ts exports thin wrappers only
 import ActionPanel from "./ActionPanel"
 import BoardPosition, { positionMap } from "./BoardPosition"
@@ -137,6 +138,12 @@ export interface GameBoardProps {
   onAbandon?: (reason: 'restart' | 'quit', playerName: string) => void
   /** WebSocket connection status from parent — used to gate the initial state broadcast */
   socketStatus?: string
+  /** Active turn deadline for the countdown timer (multiplayer only) */
+  turnDeadline?: TurnDeadlineInfo | null
+  /** Fires when the server auto-skips a turn; executor applies the state change */
+  turnTimeoutSignal?: TurnTimeoutSignal | null
+  /** Called once per turn when the local player first interacts with a card */
+  onTurnActivity?: () => void
   onReturnToHome: () => void
   onGameFinished?: (winnerId: string, winnerType: "HUMAN" | "CPU") => void
 }
@@ -161,7 +168,7 @@ function BulletProjectile({ fromX, fromY, toX, toY, angle, duration }: { fromX: 
   )
 }
 
-export default function GameBoard({ playerCount, seatingType = "automatic", gameMode = "hotseat", playerNames, localPlayerIndex, cpuPlayerIds, incomingSync, onTurnEnd, onAbandon, socketStatus, onReturnToHome, onGameFinished }: GameBoardProps) {
+export default function GameBoard({ playerCount, seatingType = "automatic", gameMode = "hotseat", playerNames, localPlayerIndex, cpuPlayerIds, incomingSync, onTurnEnd, onAbandon, socketStatus, turnDeadline, turnTimeoutSignal, onTurnActivity, onReturnToHome, onGameFinished }: GameBoardProps) {
   // In solo mode use default CPU IDs; in multiplayer use the explicit list from slots
   const botPlayerIds = cpuPlayerIds
     ?? (gameMode === "solo" ? Array.from({ length: playerCount - 1 }, (_, i) => `player${i + 2}`) : [])
@@ -345,6 +352,12 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   // Prevents the initial broadcast from firing more than once (even if socketStatus flaps)
   const initialBroadcastDone = useRef(false)
 
+  // ── Multiplayer turn timer ─────────────────────────────────────────────────
+  // Countdown in whole seconds shown to the local player while it is their turn.
+  const [turnSecondsLeft, setTurnSecondsLeft] = useState<number | null>(null)
+  // True once TURN_ACTIVITY has been sent this turn — prevents duplicate signals.
+  const turnActivitySentRef = useRef(false)
+
   // When true, the payment useEffect skips addLogEntry (state update still runs).
   // Set by the incomingSync handler when paymentLog is included in the payload;
   // the handler replays the log itself at the right position in the action sequence.
@@ -467,6 +480,108 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       setTimeout(() => { addLogEntry(log) }, delay)
     }
   }, [incomingSync]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Countdown timer for the local player's turn (multiplayer) ────────────
+  useEffect(() => {
+    if (!turnDeadline || !localPlayerId || turnDeadline.playerId !== localPlayerId) {
+      setTurnSecondsLeft(null)
+      return
+    }
+    const tick = () => {
+      const deadline = turnDeadline.completionDeadline ?? turnDeadline.idleDeadline
+      setTurnSecondsLeft(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)))
+    }
+    tick()
+    const id = setInterval(tick, 500)
+    return () => clearInterval(id)
+  }, [turnDeadline, localPlayerId])
+
+  // Reset the turn-activity flag each time the active player changes
+  useEffect(() => {
+    turnActivitySentRef.current = false
+  }, [currentPlayerIndex])
+
+  // ── Turn-timeout executor: apply skip when server auto-advances the turn ──
+  useEffect(() => {
+    if (!turnTimeoutSignal) return
+    const { timedOutPlayerId, executorPlayerId, removePlayer } = turnTimeoutSignal
+    // Only the designated executor applies the state change and re-broadcasts
+    if (!localPlayerId || localPlayerId !== executorPlayerId) return
+
+    const gs = gameStateRef.current
+    const playerIdx = gs.players.findIndex(p => p.id === timedOutPlayerId)
+    if (playerIdx === -1) return
+
+    const updatedPlayers = gs.players.map((p, i) => {
+      if (i !== playerIdx) return p
+      const newHand = removePlayer ? [] : p.hand.slice(1)
+      const gangsters = removePlayer
+        ? p.gangsters.map(g => ({ ...g, position: null as null | number }))
+        : p.gangsters
+      return { ...p, hand: newHand, gangsters }
+    })
+
+    const newDiscardPile = (() => {
+      const p = gs.players[playerIdx]
+      if (removePlayer) return [...gs.discardPile, ...p.hand]
+      const card = p.hand[0]
+      return card ? [...gs.discardPile, card] : gs.discardPile
+    })()
+
+    const newBoard = removePlayer
+      ? gs.board.map(pos =>
+          pos.occupiedBy?.playerId === timedOutPlayerId ? { ...pos, occupiedBy: null } : pos
+        )
+      : gs.board
+
+    // Advance to the next player who still has alive gangsters
+    const pCount = updatedPlayers.length
+    let nextIdx = (playerIdx + 1) % pCount
+    while (nextIdx !== playerIdx) {
+      if (updatedPlayers[nextIdx].gangsters.some(g => g.position !== null)) break
+      nextIdx = (nextIdx + 1) % pCount
+    }
+
+    const skipReason = turnTimeoutSignal.reason === 'disconnect' ? 'disconnection' : 'inactivity'
+    const skipLogEntry: Omit<LogEntry, 'id' | 'highlighted'> = {
+      round: gs.turn,
+      playerId: timedOutPlayerId,
+      playerName: gs.players[playerIdx]?.name ?? timedOutPlayerId,
+      message: removePlayer
+        ? `${gs.players[playerIdx]?.name} was removed after repeated disconnections.`
+        : `${gs.players[playerIdx]?.name}'s turn was skipped due to ${skipReason}.`,
+      type: 'system',
+    }
+
+    const newState: GameState = {
+      ...gs,
+      players: updatedPlayers,
+      discardPile: newDiscardPile,
+      board: newBoard,
+      currentPhase: 'SELECT_CARD',
+    }
+
+    addLogEntry(skipLogEntry)
+    setGameState(newState)
+    setCurrentPlayerIndex(nextIdx)
+    setSeatingPlayerOrder([])
+    setSeatingCurrentIdx(0)
+    setSeatingQueue({})
+    setSelectedCardId(null)
+    setSelectedGangsterIndex(null)
+    setSelectedDirection(null)
+    setTargetPositionId(null)
+
+    onTurnEnd?.({
+      gameState: newState,
+      currentPlayerIndex: nextIdx,
+      seatingPlayerOrder: [],
+      seatingCurrentIdx: 0,
+      seatingQueue: {},
+      actions: [{ playerId: timedOutPlayerId, cardType: 'SKIP', logEntry: skipLogEntry }],
+      isInitialSeating: false,
+    })
+  }, [turnTimeoutSignal]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Multiplayer: host broadcasts initial game state once the WebSocket is open ──
   // Gated on socketStatus === 'open' so the send is not silently dropped before the connection is ready.
@@ -1002,6 +1117,11 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       return
     }
     playSFX("click", 0.3)
+    // Signal the server that this player has started interacting — extends idle timer to 1:30
+    if (gameMode === 'multiplayer' && localPlayerId && currentPlayer.id === localPlayerId && !turnActivitySentRef.current) {
+      turnActivitySentRef.current = true
+      onTurnActivity?.()
+    }
     setSelectedCardId(cardId)
 
     if (gameState.currentPhase === "SECOND_DISPLACEMENT") {
@@ -1947,6 +2067,41 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                 />
               </div>
             </div>
+
+            {/* Turn countdown — shown only to the local player while it's their turn */}
+            {gameMode === 'multiplayer' && turnSecondsLeft !== null && (() => {
+              const isCompletion = !!turnDeadline?.completionDeadline
+              const total = isCompletion ? 90 : 30
+              const pct = Math.round((turnSecondsLeft / total) * 100)
+              const color = turnSecondsLeft <= 8 ? '#ef4444' : turnSecondsLeft <= 15 ? '#f97316' : '#22c55e'
+              return (
+                <div
+                  className="flex items-center gap-2 px-3 py-1 mx-4 mb-1 rounded-full text-xs font-mono select-none"
+                  style={{
+                    background: 'rgba(0,0,0,0.55)',
+                    border: `1px solid ${color}44`,
+                    color,
+                    alignSelf: 'flex-start',
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" style={{ flexShrink: 0 }}>
+                    <circle cx="8" cy="8" r="6" fill="none" stroke={color} strokeOpacity="0.2" strokeWidth="2.5" />
+                    <circle
+                      cx="8" cy="8" r="6"
+                      fill="none"
+                      stroke={color}
+                      strokeWidth="2.5"
+                      strokeDasharray={`${2 * Math.PI * 6}`}
+                      strokeDashoffset={`${2 * Math.PI * 6 * (1 - pct / 100)}`}
+                      strokeLinecap="round"
+                      transform="rotate(-90 8 8)"
+                    />
+                  </svg>
+                  <span>{turnSecondsLeft}s</span>
+                  <span style={{ opacity: 0.6 }}>{isCompletion ? 'to finish' : 'to play'}</span>
+                </div>
+              )
+            })()}
 
             {!gameOver && (
               <BottomPanel
