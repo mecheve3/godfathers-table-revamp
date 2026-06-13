@@ -1012,9 +1012,26 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     if (!shouldRunBots || gameMode === "hotseat") return
     if (gameState.currentPhase !== "SEATING_SELECT_GANGSTER") return
     const currentSeatingPlayerId = seatingPlayerOrder[seatingCurrentIdx]
-    if (!currentSeatingPlayerId || !botPlayerIds.includes(currentSeatingPlayerId)) return
+    if (!currentSeatingPlayerId) return
+
+    // If this player's seating queue is empty (e.g. eliminated before the raid), skip them
+    // immediately rather than leaving seatingCurrentIdx unchanged and deadlocking.
     const gangsterIdsToPlace = seatingQueue[currentSeatingPlayerId] ?? []
-    if (gangsterIdsToPlace.length === 0) return
+    if (gangsterIdsToPlace.length === 0) {
+      const anyRemaining = Object.values(seatingQueue).some((q) => q.length > 0)
+      if (!anyRemaining) return  // all done — completion was already handled after the last place
+      const total = seatingPlayerOrder.length
+      let nextIdx = (seatingCurrentIdx + 1) % total
+      for (let skip = 0; skip < total; skip++) {
+        if ((seatingQueue[seatingPlayerOrder[nextIdx]] ?? []).length > 0) break
+        nextIdx = (nextIdx + 1) % total
+      }
+      setSeatingCurrentIdx(nextIdx)
+      return
+    }
+
+    // Only run bot AI for CPU players; human players seat manually via handleSeatingConfirm
+    if (!botPlayerIds.includes(currentSeatingPlayerId)) return
 
     const timer = setTimeout(() => {
       let currentState = gameStateRef.current
@@ -1027,7 +1044,13 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
 
       const availableSeatIds = currentState.board.filter((p) => p.occupiedBy === null).map((p) => p.id)
       const decision = decideBotSeating(currentState, currentSeatingPlayerId, remaining, availableSeatIds)
-      if (!decision) return
+      if (!decision) {
+        // No valid seat available (board full or invalid state). Drop this gangster from the
+        // queue so seatingTotalRemaining changes and the effect re-triggers, unblocking the rotation.
+        currentQueue[currentSeatingPlayerId] = remaining.slice(1)
+        setSeatingQueue(currentQueue)
+        return
+      }
       currentState = seatGangsterOnBoard(currentState, decision.gangsterId, decision.seatId)
       currentQueue[currentSeatingPlayerId] = remaining.filter((id) => id !== decision.gangsterId)
 
