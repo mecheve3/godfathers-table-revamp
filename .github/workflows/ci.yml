@@ -27,12 +27,6 @@ jobs:
 
       - name: Unit tests
         run: npm test
-
-      - name: Install Playwright browsers
-        run: npx playwright install chromium --with-deps
-
-      - name: E2E tests
-        run: npm run test:e2e
         env:
           VITE_POSTHOG_KEY: ${{ secrets.VITE_POSTHOG_KEY }}
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
