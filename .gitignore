@@ -27,3 +27,6 @@ sentry-wizard-installation-error-*.log
 
 # Wrangler
 .wrangler/
+
+playwright-report/
+test-results/
