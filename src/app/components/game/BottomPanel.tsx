@@ -29,6 +29,7 @@ interface BottomPanelProps {
   onSkipPill: () => void
   seatingCurrentPlayerName?: string
   seatingSelectedGangsterId?: string | null
+  isSeatingBotTurn?: boolean
   onSeatingConfirm?: () => void
   onSeatingBack?: () => void
   humanPlayer?: Player
@@ -45,7 +46,7 @@ export default function BottomPanel({
   onCancelAction, onSkipSecondDisplacement, onSelectDiscardCard, onConfirmDiscard, gameOver,
   validGangsters, validTargets, canPlaySecondDisplacement, gameState, secondActionTaken,
   pillsApplied, pendingPillTargetIds, onSkipPill, seatingCurrentPlayerName,
-  seatingSelectedGangsterId, onSeatingConfirm, onSeatingBack, humanPlayer, gameMode, botLog,
+  seatingSelectedGangsterId, isSeatingBotTurn, onSeatingConfirm, onSeatingBack, humanPlayer, gameMode, botLog,
   newlyDealtCardIds = [], showWrapUp, onWrapUp,
 }: BottomPanelProps) {
   const [logExpanded, setLogExpanded] = useState(false)
@@ -146,7 +147,7 @@ export default function BottomPanel({
             {gamePhase === "SELECT_PILL_TARGET_2" && <div><p className="text-center">{t("game.pills.2")}</p><p className="text-center text-xs text-gray-400">{t("game.pills.status", { count: String(pillsApplied) })}</p></div>}
             {gamePhase === "SELECT_PILL_TARGET_3" && <div><p className="text-center">{t("game.pills.3")}</p><p className="text-center text-xs text-gray-400">{t("game.pills.status", { count: String(pillsApplied) })}</p></div>}
             {gamePhase === "CONFIRM_PILLS" && <div><p className="text-center">{t("game.pills.confirm")}</p><p className="text-center text-xs text-gray-400">{t("game.pills.detail", { count: String(pendingPillTargetIds.length) })}</p></div>}
-            {gamePhase === "SEATING_SELECT_GANGSTER" && <div><p className="text-center font-semibold">{seatingCurrentPlayerName ? `${seatingCurrentPlayerName}: ` : ""}{t("game.seating.gangster")}</p><p className="text-center text-xs text-gray-400">{t("game.seating.gangster.hint")}</p></div>}
+            {gamePhase === "SEATING_SELECT_GANGSTER" && <div><p className="text-center font-semibold">{seatingCurrentPlayerName ? `${seatingCurrentPlayerName}: ` : ""}{t("game.seating.gangster")}</p><p className="text-center text-xs text-gray-400 animate-pulse">{isSeatingBotTurn ? t("game.bot.turn") : t("game.seating.gangster.hint")}</p></div>}
             {gamePhase === "SEATING_SELECT_SEAT" && <div><p className="text-center font-semibold">{seatingCurrentPlayerName ? `${seatingCurrentPlayerName}: ` : ""}{t("game.seating.seat")}</p><p className="text-center text-xs text-gray-400">{t("game.seating.seat.hint")}</p></div>}
             {gamePhase === "SEATING_CONFIRM" && <div><p className="text-center font-semibold">{t("game.seating.confirm")}</p><p className="text-center text-xs text-gray-400">{t("game.seating.confirm.hint")}</p></div>}
           </div>

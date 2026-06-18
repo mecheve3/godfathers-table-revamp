@@ -231,6 +231,15 @@ function HowToPlayModal({ onClose, startChapter = 0 }: { onClose: () => void; st
             {t("howto.nav.back")}
           </button>
 
+          {!isLast && (
+            <button
+              onClick={onClose}
+              className="text-xs uppercase tracking-wider text-zinc-500 hover:text-zinc-300 transition-colors px-2 py-1.5 rounded"
+            >
+              {t("btn.skip")}
+            </button>
+          )}
+
           <button
             onClick={isLast ? onClose : () => setChapter((c) => c + 1)}
             className="flex items-center gap-1.5 text-sm font-serif uppercase tracking-wider transition-opacity px-3 py-1.5 rounded"

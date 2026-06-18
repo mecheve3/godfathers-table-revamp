@@ -94,8 +94,8 @@ export default function ActionPanel({
         <span className="text-[#F5AC0E] font-bold">${gameState.bankMoney.toLocaleString()}</span>
       </div>
 
-      {/* Game log — fixed height at the bottom */}
-      <div className="flex-shrink-0 border-t border-zinc-700 flex flex-col overflow-hidden" style={{ height: "32%" }}>
+      {/* Game log — fixed height at the bottom, sized to show ~3 entries */}
+      <div className="flex-shrink-0 border-t border-zinc-700 flex flex-col overflow-hidden" style={{ height: "8.5rem" }}>
         <div className="flex-shrink-0 px-3 py-1 flex items-center gap-1.5">
           <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">{t("panel.log")}</span>
         </div>

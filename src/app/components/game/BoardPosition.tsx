@@ -29,6 +29,10 @@ interface BoardPositionProps {
   eliminationSnapshot?: string | null
   /** True while any displacement drag is in progress — suppresses cake click-targets and keeps dragging character fully opaque */
   isDragActive?: boolean
+  /** True when the SELECT_CAKE phase is active — cake icons should capture clicks exclusively */
+  isCakeSelectMode?: boolean
+  /** Called when a seating gangster is dragged from the panel and dropped onto this seat */
+  onDropSeating?: (gangsterId: string) => void
 }
 
 export const positionMap: Record<number, { x: number; y: number }> = {
@@ -133,7 +137,7 @@ const getGangsterImage = (playerId: string, type: GangsterType, variant?: 2 | 3)
 export default function BoardPosition({
   position, gameState, selected, highlighted, onClick, animClass, spriteOverlay, spriteLarge,
   onCakeClick, draggable, onDragStart, onDragOver, onDrop, hideOccupant, previewGangster, pillSelected,
-  poseOverride, eliminationSnapshot, isDragActive,
+  poseOverride, eliminationSnapshot, isDragActive, isCakeSelectMode, onDropSeating,
 }: BoardPositionProps) {
   const [cakes, setCakes] = useState<typeof gameState.cakes>([])
   const style = getPositionStyle(position.id)
@@ -192,8 +196,19 @@ export default function BoardPosition({
           requestAnimationFrame(() => { document.body.removeChild(clone); el.style.opacity = prevOpacity })
           onDragStart()
         } : undefined}
-        onDragOver={onDragOver}
-        onDrop={onDrop ? (e) => { e.preventDefault(); onDrop() } : undefined}
+        onDragOver={(e) => {
+          if (onDragOver) onDragOver(e)
+          if (onDropSeating && !e.defaultPrevented) e.preventDefault()
+        }}
+        onDrop={(e) => {
+          e.preventDefault()
+          const seatingId = e.dataTransfer.getData("seating-gangster-id")
+          if (seatingId && onDropSeating) {
+            onDropSeating(seatingId)
+          } else {
+            onDrop?.()
+          }
+        }}
       >
         {/* Gangster PNG — renders freeform without a circular clip */}
         {gangsterDetails && !hideOccupant && (
@@ -274,7 +289,7 @@ export default function BoardPosition({
             zIndex: 5,
           }}
           title={`Cake placed on round ${cake.roundPlaced} — explodes next round`}
-          onClick={(e) => { e.stopPropagation(); if (onCakeClick) onCakeClick(cake.id); else onClick() }}
+          onClick={(e) => { if (isCakeSelectMode) { e.stopPropagation(); if (onCakeClick) onCakeClick(cake.id) } else { onClick() } }}
         >
           <img
             src="/images/Sprites/cake.png"

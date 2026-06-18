@@ -1320,6 +1320,9 @@ export const getValidPillTargets = (
     if (pos.occupiedBy.playerId === currentPlayerId) continue
     const gangsterId = pos.occupiedBy.gangsterId
     if (alreadyTargetedIds.includes(gangsterId)) continue
+    const ownerPlayer = gameState.players.find((p) => p.id === pos.occupiedBy!.playerId)
+    const gangster = ownerPlayer?.gangsters.find((g) => g.id === gangsterId)
+    if (gangster?.status === "sleeping") continue
     results.push(gangsterId)
   }
   return results

@@ -1087,7 +1087,10 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     return () => clearTimeout(timer)
   // seatingTotalRemaining ensures the effect retriggers when the same bot's turn
   // comes back around (seatingCurrentIdx unchanged but its queue shrunk by 1).
-  }, [gameState.currentPhase, seatingCurrentIdx, seatingTotalRemaining, gameMode]) // eslint-disable-line react-hooks/exhaustive-deps
+  // seatingPlayerOrder.length ensures the effect re-runs once seatingPlayerOrder is populated
+  // (the mount useEffect sets it asynchronously, so without this dep the effect fires once
+  // with an empty array and never retries, freezing CPU seating in manual mode).
+  }, [gameState.currentPhase, seatingCurrentIdx, seatingTotalRemaining, gameMode, seatingPlayerOrder.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSelectDiscardCard = () => {
     if (gameState.currentPhase !== "SELECT_CARD" || secondActionTaken) return
@@ -1563,9 +1566,13 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     const newTargets = [...pendingPillTargetIds, gangsterId]
     setPendingPillTargetIds(newTargets); setPillsApplied(newTargets.length)
     const nextVt = getValidPillTargets(gameState, currentPlayer.id, newTargets); setValidPillTargets(nextVt)
-    if (newTargets.length === 1) setGameState({ ...gameState, currentPhase: "SELECT_PILL_TARGET_2" })
-    else if (newTargets.length === 2) setGameState({ ...gameState, currentPhase: "SELECT_PILL_TARGET_3" })
-    else setGameState({ ...gameState, currentPhase: "CONFIRM_PILLS" })
+    if (nextVt.length === 0 || newTargets.length >= 3) {
+      setGameState({ ...gameState, currentPhase: "CONFIRM_PILLS" })
+    } else if (newTargets.length === 1) {
+      setGameState({ ...gameState, currentPhase: "SELECT_PILL_TARGET_2" })
+    } else {
+      setGameState({ ...gameState, currentPhase: "SELECT_PILL_TARGET_3" })
+    }
   }
 
   const handleSkipPill = () => { if (pendingPillTargetIds.length === 0) return; playSFX("click", 0.3); setGameState({ ...gameState, currentPhase: "CONFIRM_PILLS" }) }
@@ -1573,11 +1580,16 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   const handleSeatingGangsterSelect = (gangsterId: string) => {
     const currentSeatingPlayerId = seatingPlayerOrder[seatingCurrentIdx]
     if (!currentSeatingPlayerId) return
-    playSFX("click", 0.3)
     // In multiplayer, only the player whose turn it is can select gangsters
     if (localPlayerId && currentSeatingPlayerId !== localPlayerId) return
     const queue = seatingQueue[currentSeatingPlayerId] ?? []
     if (!queue.includes(gangsterId)) return
+    playSFX("click", 0.3)
+    if (seatingSelectedGangsterId === gangsterId) {
+      setSeatingSelectedGangsterId(null); setValidTargets([])
+      setGameState({ ...gameState, currentPhase: "SEATING_SELECT_GANGSTER" })
+      return
+    }
     setSeatingSelectedGangsterId(gangsterId)
     setValidTargets(gameState.board.filter((p) => p.occupiedBy === null).map((p) => p.id))
     setGameState({ ...gameState, currentPhase: "SEATING_SELECT_SEAT" })
@@ -2028,6 +2040,19 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                         eliminationSnapshot={eliminationSnapshots[position.id] ?? null}
                         isDragActive={draggingFromSeatId !== null}
                         onCakeClick={gameState.currentPhase === "SELECT_CAKE" ? handleDirectCakeClick : undefined}
+                        isCakeSelectMode={gameState.currentPhase === "SELECT_CAKE"}
+                        onDropSeating={["SEATING_SELECT_GANGSTER", "SEATING_SELECT_SEAT"].includes(gameState.currentPhase) && position.occupiedBy === null ? (gangsterId) => {
+                          const currentSeatingPlayerId = seatingPlayerOrder[seatingCurrentIdx]
+                          if (!currentSeatingPlayerId) return
+                          if (localPlayerId && currentSeatingPlayerId !== localPlayerId) return
+                          const queue = seatingQueue[currentSeatingPlayerId] ?? []
+                          if (!queue.includes(gangsterId)) return
+                          playSFX("click", 0.3)
+                          setSeatingSelectedGangsterId(gangsterId)
+                          setTargetPositionId(position.id)
+                          setValidTargets(gameState.board.filter((p) => p.occupiedBy === null).map((p) => p.id))
+                          setGameState({ ...gameState, currentPhase: "SEATING_CONFIRM" })
+                        } : undefined}
                         draggable={
                           gameState.currentPhase === "SELECT_GANGSTER" &&
                           selectedCardId !== null &&
@@ -2162,6 +2187,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                 onSkipPill={handleSkipPill}
                 seatingCurrentPlayerName={gameState.players.find((p) => p.id === seatingPlayerOrder[seatingCurrentIdx])?.name}
                 seatingSelectedGangsterId={seatingSelectedGangsterId}
+                isSeatingBotTurn={botPlayerIds.includes(seatingPlayerOrder[seatingCurrentIdx])}
                 onSeatingConfirm={handleSeatingConfirm}
                 onSeatingBack={handleSeatingBack}
                 newlyDealtCardIds={newlyDealtCardIds}

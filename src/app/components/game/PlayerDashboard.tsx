@@ -53,14 +53,19 @@ export default function PlayerDashboard({
               <div
                 key={gangster.id}
                 onClick={() => isClickable && onSeatingGangsterSelect!(gangster.id)}
+                draggable={isClickable}
+                onDragStart={isClickable ? (e) => {
+                  e.dataTransfer.setData("seating-gangster-id", gangster.id)
+                  e.dataTransfer.effectAllowed = "move"
+                } : undefined}
                 className={`w-8 h-8 rounded-full overflow-hidden relative
                   ${gangster.position === null && !needsPlacing ? "opacity-30 grayscale" : ""}
                   ${needsPlacing && !isSelected ? "animate-pulse ring-2 ring-yellow-400" : ""}
                   ${isSelected ? "ring-2 ring-white scale-110" : ""}
-                  ${isClickable ? "cursor-pointer hover:scale-110 transition-transform" : ""}`}
-                title={needsPlacing ? `${gangster.type} — click to place` : gangster.position !== null ? `${gangster.type} at position ${gangster.position}` : `${gangster.type} (eliminated)`}
+                  ${isClickable ? "cursor-grab hover:scale-110 transition-transform" : ""}`}
+                title={needsPlacing ? `${gangster.type} — click or drag to place` : gangster.position !== null ? `${gangster.type} at position ${gangster.position}` : `${gangster.type} (eliminated)`}
               >
-                <img src={getGangsterImage(player.id, gangster.type)} alt={gangster.type} className="w-full h-full object-contain" />
+                <img src={getGangsterImage(player.id, gangster.type)} alt={gangster.type} className="w-full h-full object-contain" draggable={false} />
               </div>
             )
           })}
