@@ -366,12 +366,14 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   // ── Multiplayer: apply state pushed from server ────────────────────────────
   useEffect(() => {
     if (!incomingSync) return
-    // Don't interrupt this client while they are mid-seating-action
-    const isLocalPlayerSeatingTurn = localPlayerId != null && seatingPlayerOrder[seatingCurrentIdx] === localPlayerId
+    // Only block when the local player has already committed to a seating action
+    // (selected a gangster or picked a seat). In SEATING_SELECT_GANGSTER they haven't
+    // touched anything yet so incoming syncs are safe — blocking them here is what caused
+    // the police-raid re-seating dead-lock (the sync advancing to the player's own turn
+    // would arrive and be rejected, leaving seatingCurrentIdx pointing at the wrong player).
     if (
       gameState.currentPhase === "SEATING_SELECT_SEAT" ||
-      gameState.currentPhase === "SEATING_CONFIRM" ||
-      (gameState.currentPhase === "SEATING_SELECT_GANGSTER" && isLocalPlayerSeatingTurn)
+      gameState.currentPhase === "SEATING_CONFIRM"
     ) return
 
     // If the payload includes a pre-computed payment log, tell the payment useEffect
