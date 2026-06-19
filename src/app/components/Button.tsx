@@ -25,9 +25,8 @@ export function Button({
       disabled={isDisabled}
       className={[
         'relative overflow-hidden transition-all duration-200',
-        'border border-game-border',
         'font-serif uppercase tracking-widest text-base font-bold',
-        isDisabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:border-game-border-hi',
+        isDisabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer',
         className,
       ]
         .filter(Boolean)
@@ -35,15 +34,21 @@ export function Button({
       style={{
         background: variant === 'ghost'
           ? 'transparent'
-          : 'linear-gradient(180deg, #1a0a04 0%, #0d0402 50%, #1a0a04 100%)',
-        boxShadow: isDisabled ? 'none' : 'inset 0 1px 0 rgba(255,255,255,0.04), 0 0 16px rgba(120,10,10,0.3)',
-        color: '#C9A84C',
+          : 'linear-gradient(180deg, #1a1005 0%, #0f0a02 50%, #1a1005 100%)',
+        border: '1px solid #c79a4a',
+        boxShadow: isDisabled
+          ? 'none'
+          : 'inset 0 1px 0 rgba(255,255,255,0.04), 0 0 18px rgba(199,154,74,0.18)',
+        color: '#e9cd86',
       }}
       {...props}
     >
-      {/* hover glow */}
+      {/* gold hover glow overlay */}
       {!isDisabled && (
-        <span className="absolute inset-0 opacity-0 hover:opacity-100 transition-opacity duration-300 bg-red-900/10 pointer-events-none" />
+        <span
+          className="absolute inset-0 opacity-0 hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+          style={{ background: 'rgba(199,154,74,0.08)' }}
+        />
       )}
 
       {isLoading ? (

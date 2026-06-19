@@ -34,24 +34,27 @@ export function MatchOptionCard({
         .join(' ')}
       style={{
         background: selected
-          ? 'linear-gradient(180deg, #3d0c0c 0%, #2a0808 100%)'
-          : 'linear-gradient(180deg, #1a0a04 0%, #0f0602 100%)',
-        border: selected ? '1px solid #b91c1c' : '1px solid #3f1515',
+          ? 'linear-gradient(180deg, #1a1208 0%, #0f0a02 100%)'
+          : 'linear-gradient(180deg, #16100a 0%, #0f0a02 100%)',
+        border: selected ? '1px solid #c79a4a' : '1px solid rgba(199,154,74,0.18)',
         boxShadow: selected
-          ? '0 0 14px rgba(185,28,28,0.4), inset 0 1px 0 rgba(255,255,255,0.05)'
+          ? '0 0 18px rgba(199,154,74,0.30), inset 0 1px 0 rgba(255,255,255,0.05)'
           : 'inset 0 1px 0 rgba(255,255,255,0.02)',
       }}
     >
       {/* bottom accent bar on selection */}
       {selected && (
-        <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-red-700" />
+        <span
+          className="absolute bottom-0 left-0 right-0 h-0.5"
+          style={{ background: '#c79a4a' }}
+        />
       )}
 
       <span
         className={`${titleSize} font-serif font-black leading-tight text-center px-2 break-words`}
         style={{
-          color: selected ? '#C9A84C' : '#6b4c2a',
-          textShadow: selected ? '0 0 12px rgba(201,168,76,0.5)' : 'none',
+          color: selected ? '#e9cd86' : '#7a5c28',
+          textShadow: selected ? '0 0 14px rgba(233,205,134,0.45)' : 'none',
         }}
       >
         {title}
@@ -60,7 +63,7 @@ export function MatchOptionCard({
       {subtitle && (
         <span
           className="text-xl font-serif uppercase tracking-wider mt-1"
-          style={{ color: selected ? '#a87840' : '#4a3020' }}
+          style={{ color: selected ? '#c79a4a' : '#4a3518' }}
         >
           {subtitle}
         </span>

@@ -11,7 +11,6 @@ export default function StartScreen() {
   const { setConfig } = useMatch()
   const { t } = useLang()
 
-  // Quick Match: goes through same config as Create but skips lobby
   const handleQuickMatch = () => {
     setConfig({ mode: 'quick' })
     navigate('/create')
@@ -28,32 +27,51 @@ export default function StartScreen() {
   }
 
   const options = [
-    { label: t('menu.quick'), handler: handleQuickMatch, delay: 0.1 },
-    { label: t('menu.create'), handler: handleCreateMatch, delay: 0.2 },
-    { label: t('menu.join'), handler: handleJoinMatch, delay: 0.3 },
+    { label: t('menu.quick'), handler: handleQuickMatch, delay: 0.15 },
+    { label: t('menu.create'), handler: handleCreateMatch, delay: 0.25 },
+    { label: t('menu.join'), handler: handleJoinMatch, delay: 0.35 },
   ]
 
   return (
     <PageTransition>
       <GameLayout>
-        <div className="flex flex-col items-center justify-center flex-1 gap-8 py-20 px-6">
+        <div className="relative flex flex-col items-center justify-center flex-1 gap-8 py-20 px-6">
+
+          {/* Poker table felt oval — decorative background element */}
+          <div
+            className="pointer-events-none absolute"
+            style={{
+              top: '58%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: '520px',
+              height: '270px',
+              borderRadius: '50%',
+              background: 'radial-gradient(ellipse, #1f4a32 0%, #163827 60%, #0f2a1d 100%)',
+              border: '3px solid #c79a4a',
+              boxShadow: '0 0 50px rgba(199,154,74,0.10), inset 0 0 60px rgba(0,0,0,0.45)',
+              zIndex: 0,
+            }}
+          />
+
+          {/* Title block */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="text-center mb-6"
+            className="relative z-10 text-center mb-4"
           >
             <p
-              className="text-xs uppercase tracking-[0.4em] mb-2 font-light font-serif"
-              style={{ color: '#9b1c1c' }}
+              className="text-xs uppercase tracking-[0.45em] mb-3 font-light font-serif"
+              style={{ color: '#c79a4a', letterSpacing: '0.45em' }}
             >
               {t('landing.welcome')}
             </p>
             <h1
               className="text-6xl font-black uppercase tracking-widest font-serif"
               style={{
-                color: '#C9A84C',
-                textShadow: '0 0 30px rgba(201,168,76,0.4), 0 2px 4px rgba(0,0,0,1)',
+                color: '#e9cd86',
+                textShadow: '0 0 40px rgba(233,205,134,0.35), 0 2px 6px rgba(0,0,0,1)',
               }}
             >
               {t('landing.title')}
@@ -61,12 +79,14 @@ export default function StartScreen() {
             <Divider />
           </motion.div>
 
+          {/* Action buttons */}
           {options.map(({ label, handler, delay }) => (
             <motion.div
               key={label}
-              initial={{ opacity: 0, y: 8 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay }}
+              transition={{ delay, duration: 0.35 }}
+              className="relative z-10"
             >
               <Button onClick={handler} className="w-72">
                 {label}

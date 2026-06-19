@@ -4,9 +4,8 @@ import { useAudio } from '../features/game/AudioContext'
 import { useLang } from '../context/LanguageContext'
 
 /**
- * Full-screen dark gradient wrapper used by every game screen.
- * Provides the consistent Godfather's Table background and a
- * persistent music toggle in the bottom-right corner.
+ * Full-screen dark wrapper used by every setup screen.
+ * Deep near-black background with a slow ambient candlelight glow at the top.
  */
 export function GameLayout({ children }: { children: ReactNode }) {
   const { musicEnabled, toggleMusic } = useAudio()
@@ -14,13 +13,23 @@ export function GameLayout({ children }: { children: ReactNode }) {
 
   return (
     <div
-      className="relative min-h-screen w-full flex flex-col"
-      style={{
-        background:
-          'linear-gradient(160deg, #1a0a04 0%, #2B1710 40%, #3D2314 70%, #1a0a04 100%)',
-      }}
+      className="relative min-h-screen w-full flex flex-col overflow-hidden"
+      style={{ background: '#170d08' }}
     >
-      {children}
+      {/* Ambient candlelight glow — emanates from top-center */}
+      <div
+        className="candle-glow pointer-events-none absolute inset-x-0 top-0"
+        style={{
+          height: '55%',
+          background: 'radial-gradient(ellipse 70% 100% at 50% 0%, rgba(233,205,134,0.95) 0%, transparent 100%)',
+          zIndex: 0,
+        }}
+      />
+
+      {/* Content layer above glow */}
+      <div className="relative z-10 flex flex-col flex-1">
+        {children}
+      </div>
 
       {/* Language toggle — fixed bottom-right, above music */}
       <button
@@ -28,10 +37,10 @@ export function GameLayout({ children }: { children: ReactNode }) {
         aria-label={t('layout.lang_toggle')}
         className="fixed bottom-16 right-4 z-50 w-10 h-10 rounded-full flex items-center justify-center transition-colors text-sm font-bold"
         style={{
-          background: 'rgba(30,10,5,0.85)',
-          border: '1px solid #C9A84C44',
+          background: 'rgba(15,8,2,0.85)',
+          border: '1px solid #c79a4a44',
           backdropFilter: 'blur(4px)',
-          color: '#C9A84C',
+          color: '#c79a4a',
         }}
       >
         {lang === 'en' ? '🇪🇸' : '🇺🇸'}
@@ -43,10 +52,10 @@ export function GameLayout({ children }: { children: ReactNode }) {
         aria-label={musicEnabled ? t('layout.mute') : t('layout.unmute')}
         className="fixed bottom-4 right-4 z-50 w-10 h-10 rounded-full flex items-center justify-center transition-colors"
         style={{
-          background: musicEnabled ? 'rgba(63,21,21,0.85)' : 'rgba(30,10,5,0.85)',
-          border: `1px solid ${musicEnabled ? '#C9A84C55' : '#6b4c2a44'}`,
+          background: musicEnabled ? 'rgba(20,12,3,0.85)' : 'rgba(15,8,2,0.85)',
+          border: `1px solid ${musicEnabled ? '#c79a4a55' : '#c79a4a22'}`,
           backdropFilter: 'blur(4px)',
-          color: musicEnabled ? '#C9A84C' : '#6b4c2a',
+          color: musicEnabled ? '#c79a4a' : '#6b4c2a',
         }}
       >
         {musicEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
@@ -55,13 +64,13 @@ export function GameLayout({ children }: { children: ReactNode }) {
   )
 }
 
-/** Decorative gold/red divider line. */
+/** Decorative gold divider with a crimson diamond accent. */
 export function Divider() {
   return (
     <div className="flex items-center justify-center gap-3 my-2">
-      <div className="h-px w-16 bg-gradient-to-r from-transparent to-red-800/70" />
-      <div className="w-1.5 h-1.5 rounded-full bg-red-700" />
-      <div className="h-px w-16 bg-gradient-to-l from-transparent to-red-800/70" />
+      <div className="h-px w-16" style={{ background: 'linear-gradient(to right, transparent, rgba(199,154,74,0.5))' }} />
+      <div className="w-2 h-2 rotate-45" style={{ background: '#b23b2e' }} />
+      <div className="h-px w-16" style={{ background: 'linear-gradient(to left, transparent, rgba(199,154,74,0.5))' }} />
     </div>
   )
 }
@@ -73,8 +82,8 @@ export function ScreenTitle({ children }: { children: ReactNode }) {
       <h2
         className="text-4xl font-black uppercase tracking-widest font-serif"
         style={{
-          color: '#C9A84C',
-          textShadow: '0 0 20px rgba(201,168,76,0.35), 0 2px 4px rgba(0,0,0,1)',
+          color: '#e9cd86',
+          textShadow: '0 0 24px rgba(233,205,134,0.30), 0 2px 4px rgba(0,0,0,1)',
         }}
       >
         {children}

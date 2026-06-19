@@ -166,3 +166,20 @@
   inset: 0;
   overflow: hidden;
 }
+
+/* ── Set Stage input placeholder gold tint ──────────────────────────────────── */
+.stage-input::placeholder {
+  color: rgba(199,154,74,0.45);
+}
+
+/* ── Set Stage ambient candlelight glow ─────────────────────────────────────── */
+@keyframes candle-flicker {
+  0%, 100% { opacity: 0.16; }
+  22%       { opacity: 0.11; }
+  43%       { opacity: 0.20; }
+  65%       { opacity: 0.12; }
+  84%       { opacity: 0.18; }
+}
+.candle-glow {
+  animation: candle-flicker 5.5s ease-in-out infinite;
+}

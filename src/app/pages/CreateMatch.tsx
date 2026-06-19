@@ -104,7 +104,7 @@ export default function CreateMatch() {
                 exit={{ opacity: 0, x: 16 }}
                 className="flex flex-col items-center gap-10"
               >
-                <p className="text-xs uppercase tracking-[0.35em] font-serif" style={{ color: '#9b1c1c' }}>
+                <p className="text-xs uppercase tracking-[0.35em] font-serif" style={{ color: '#c79a4a' }}>
                   {t('setup.players')}
                 </p>
                 <div className="flex gap-4">
@@ -133,7 +133,7 @@ export default function CreateMatch() {
                 exit={{ opacity: 0, x: -16 }}
                 className="flex flex-col items-center gap-10"
               >
-                <p className="text-xs uppercase tracking-[0.35em] font-serif" style={{ color: '#9b1c1c' }}>
+                <p className="text-xs uppercase tracking-[0.35em] font-serif" style={{ color: '#c79a4a' }}>
                   {t('setup.seating')}
                 </p>
                 <div className="flex gap-6">
@@ -168,7 +168,7 @@ export default function CreateMatch() {
                 exit={{ opacity: 0, x: -16 }}
                 className="flex flex-col items-center gap-8 w-full max-w-xs"
               >
-                <p className="text-xs uppercase tracking-[0.35em] font-serif" style={{ color: '#9b1c1c' }}>
+                <p className="text-xs uppercase tracking-[0.35em] font-serif" style={{ color: '#c79a4a' }}>
                   {t('setup.name')}
                 </p>
                 <input
@@ -179,7 +179,22 @@ export default function CreateMatch() {
                   onKeyDown={(e) => { if (e.key === 'Enter') handleNameSubmit() }}
                   placeholder={t('setup.name.placeholder')}
                   maxLength={20}
-                  className="w-full bg-zinc-800 border border-zinc-600 rounded-md px-4 py-2.5 text-white placeholder-zinc-500 focus:outline-none focus:border-[#F5AC0E] text-center text-lg"
+                  className="stage-input w-full rounded-md px-4 py-3 font-serif tracking-wider text-center text-lg focus:outline-none transition-all duration-150"
+                  style={{
+                    background: 'linear-gradient(180deg, #0d0402 0%, #120802 100%)',
+                    border: '1px solid #c79a4a',
+                    boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)',
+                    color: '#e9cd86',
+                    caretColor: '#e9cd86',
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = '#e9cd86'
+                    e.currentTarget.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.5), 0 0 0 2px rgba(199,154,74,0.20)'
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = '#c79a4a'
+                    e.currentTarget.style.boxShadow = 'inset 0 2px 4px rgba(0,0,0,0.5)'
+                  }}
                 />
                 <Button onClick={handleNameSubmit} isLoading={isLoading} className="w-full">
                   {isQuickMatch ? t('setup.start') : t('setup.create_lobby')}
