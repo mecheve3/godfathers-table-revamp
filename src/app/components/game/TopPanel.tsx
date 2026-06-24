@@ -262,7 +262,7 @@ export default function TopPanel({ onRestart, onNewGame, showRulebookOnMount = f
 
   useEffect(() => { onRulesOpenChange?.(howToPlayOpen) }, [howToPlayOpen]) // eslint-disable-line react-hooks/exhaustive-deps
   const menuRef = useRef<HTMLDivElement>(null)
-  const { musicEnabled, sfxEnabled, toggleMusic, toggleSfx } = useAudio()
+  const { musicEnabled, sfxEnabled, musicVolume, sfxVolume, toggleMusic, toggleSfx, setMusicVolume, setSfxVolume } = useAudio()
   const { lang, setLang, t } = useLang()
 
   useEffect(() => {
@@ -313,27 +313,45 @@ export default function TopPanel({ onRestart, onNewGame, showRulebookOnMount = f
 
               <div className="border-t border-zinc-700 my-1" />
 
-              <button
-                onClick={toggleMusic}
-                className="w-full flex items-center gap-3 px-4 py-2 text-sm hover:bg-zinc-700 transition-colors"
-                style={{ color: musicEnabled ? '#C9A84C' : '#6b6b6b' }}
-              >
-                {musicEnabled
-                  ? <Music className="w-4 h-4 flex-shrink-0" />
-                  : <Music2 className="w-4 h-4 flex-shrink-0" />}
-                <span>{musicEnabled ? t("game.menu.music_on") : t("game.menu.music_off")}</span>
-              </button>
+              <div className="px-4 pt-2 pb-2.5">
+                <button
+                  onClick={toggleMusic}
+                  className="w-full flex items-center gap-3 text-sm hover:opacity-75 transition-opacity mb-2"
+                  style={{ color: musicEnabled ? '#C9A84C' : '#6b6b6b' }}
+                >
+                  {musicEnabled
+                    ? <Music className="w-4 h-4 flex-shrink-0" />
+                    : <Music2 className="w-4 h-4 flex-shrink-0" />}
+                  <span className="flex-1 text-left">{musicEnabled ? t("game.menu.music_on") : t("game.menu.music_off")}</span>
+                </button>
+                <input
+                  type="range" min="0" max="1" step="0.05"
+                  value={musicVolume}
+                  onChange={(e) => setMusicVolume(Number(e.target.value))}
+                  disabled={!musicEnabled}
+                  className="w-full h-1.5 accent-[#C9A84C] cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed"
+                />
+              </div>
 
-              <button
-                onClick={toggleSfx}
-                className="w-full flex items-center gap-3 px-4 py-2 text-sm hover:bg-zinc-700 transition-colors"
-                style={{ color: sfxEnabled ? '#C9A84C' : '#6b6b6b' }}
-              >
-                {sfxEnabled
-                  ? <Volume2 className="w-4 h-4 flex-shrink-0" />
-                  : <VolumeOff className="w-4 h-4 flex-shrink-0" />}
-                <span>{sfxEnabled ? t("game.menu.sfx_on") : t("game.menu.sfx_off")}</span>
-              </button>
+              <div className="px-4 pt-1 pb-2.5">
+                <button
+                  onClick={toggleSfx}
+                  className="w-full flex items-center gap-3 text-sm hover:opacity-75 transition-opacity mb-2"
+                  style={{ color: sfxEnabled ? '#C9A84C' : '#6b6b6b' }}
+                >
+                  {sfxEnabled
+                    ? <Volume2 className="w-4 h-4 flex-shrink-0" />
+                    : <VolumeOff className="w-4 h-4 flex-shrink-0" />}
+                  <span className="flex-1 text-left">{sfxEnabled ? t("game.menu.sfx_on") : t("game.menu.sfx_off")}</span>
+                </button>
+                <input
+                  type="range" min="0" max="1" step="0.05"
+                  value={sfxVolume}
+                  onChange={(e) => setSfxVolume(Number(e.target.value))}
+                  disabled={!sfxEnabled}
+                  className="w-full h-1.5 accent-[#C9A84C] cursor-pointer disabled:opacity-25 disabled:cursor-not-allowed"
+                />
+              </div>
 
               <div className="border-t border-zinc-700 my-1" />
 

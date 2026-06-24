@@ -579,7 +579,9 @@ export function decideBotSeating(
       if (!seat) continue
 
       const aliveCount = player.gangsters.filter((g) => g.position !== null).length + gangsterIdsToPlace.length
-      const score = scorePlacement(gangster.type, seat, ownedTypes, aliveCount)
+      // Small random jitter (0–8) breaks ties between equal-scored seats so the
+      // bot doesn't always march clockwise through businesses with the same score.
+      const score = scorePlacement(gangster.type, seat, ownedTypes, aliveCount) + Math.random() * 8
       if (score > bestScore) {
         bestScore = score
         bestGangsterId = gangsterId

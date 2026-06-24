@@ -6,6 +6,10 @@ const MAX_CONCURRENT = 3
 export let sfxEnabled = true
 export function setSfxEnabled(val: boolean) { sfxEnabled = val }
 
+/** Global volume multiplier (0–1) — applied on top of each call's volume param */
+let sfxVolumeMultiplier = 1
+export function setSfxVolumeMultiplier(val: number) { sfxVolumeMultiplier = Math.max(0, Math.min(1, val)) }
+
 /**
  * Play a sound effect.
  * @param name   Filename without extension (e.g. "gun", "knife", "bank")
@@ -20,7 +24,7 @@ export function playSFX(name: string, volume = 0.7, delayMs = 0, ext = "wav"): v
     if (!sfxEnabled) return
     if (activeSounds >= MAX_CONCURRENT) return
     const audio = new Audio(`${SFX_PATH}${name}.${ext}`)
-    audio.volume = Math.max(0, Math.min(1, volume))
+    audio.volume = Math.max(0, Math.min(1, volume * sfxVolumeMultiplier))
     activeSounds++
     audio.play().catch(() => {})
     audio.addEventListener("ended", () => { activeSounds-- }, { once: true })

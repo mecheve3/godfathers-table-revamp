@@ -10,6 +10,7 @@ import { GameLayout, ScreenTitle } from '../components/GameLayout'
 import { useMatch } from '../features/match/MatchContext'
 import { createRoom } from '../features/multiplayer/api'
 import { useLang } from '../context/LanguageContext'
+import { containsBadWord } from '../features/game/badwords'
 
 type Step = 'players' | 'seating' | 'name'
 
@@ -83,6 +84,11 @@ export default function CreateMatch() {
   }
 
   const handleNameSubmit = () => {
+    const trimmed = playerName.trim()
+    if (trimmed && containsBadWord(trimmed)) {
+      toast.error(t('setup.name.error.badword'))
+      return
+    }
     if (isQuickMatch) handleStartQuickGame()
     else handleCreateLobby()
   }

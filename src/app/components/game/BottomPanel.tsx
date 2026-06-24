@@ -1,5 +1,6 @@
 import type { Player, Gangster, GameState, Card, GamePhase, CakeBomb } from "../../features/game/types"
 import { useState } from "react"
+import { Trash2 } from "lucide-react"
 import PlayerHand from "./PlayerHand"
 import { useLang } from "../../context/LanguageContext"
 
@@ -60,14 +61,16 @@ export default function BottomPanel({
     : false
   const handPlayer = humanPlayer ?? currentPlayer
 
-  const Btn = ({ onClick, disabled, children, variant = "primary", wide = false }: { onClick: () => void; disabled?: boolean; children: React.ReactNode; variant?: "primary" | "secondary"; wide?: boolean }) => (
+  const Btn = ({ onClick, disabled, children, variant = "primary", wide = false }: { onClick: () => void; disabled?: boolean; children: React.ReactNode; variant?: "primary" | "secondary" | "discard"; wide?: boolean }) => (
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`flex items-center justify-center gap-2 rounded text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed
+      className={`flex items-center justify-center gap-2 rounded text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed
         ${wide ? "w-full px-4 py-3" : "px-3 py-2"}
         ${variant === "primary"
           ? "bg-[#F5AC0E] text-[#2B1710] hover:bg-[#F5AC0E]/80"
+          : variant === "discard"
+          ? "bg-zinc-800/80 text-zinc-500 border border-zinc-700/50 hover:bg-red-950/30 hover:text-zinc-300 hover:border-red-900/40"
           : "bg-zinc-700 text-white hover:bg-zinc-600"}`}
     >
       {children}
@@ -96,7 +99,10 @@ export default function BottomPanel({
           />
           {!isBotTurn && gamePhase === "SELECT_CARD" && !secondActionTaken && (
             <div className="ml-1.5">
-              <Btn onClick={onSelectDiscardCard}>{t("btn.discard")}</Btn>
+              <Btn onClick={onSelectDiscardCard} variant="discard">
+                <Trash2 className="w-3.5 h-3.5 flex-shrink-0" />
+                {t("btn.discard")}
+              </Btn>
             </div>
           )}
         </div>
@@ -109,7 +115,7 @@ export default function BottomPanel({
             {isBotTurn && gameMode === "multiplayer" && <span className="ml-2 text-xs text-zinc-400 animate-pulse">{t("game.bot.waiting")}</span>}
           </div>
 
-          <div className="p-1.5 lg:p-3 bg-gradient-to-b from-[#3D2314] to-[#2B1710] rounded-md mb-1.5 lg:mb-3 text-[#F5AC0E] text-xs lg:text-sm">
+          <div className="p-2.5 lg:p-4 bg-[#0e0604] border border-[#F5AC0E]/25 rounded-lg mb-1.5 lg:mb-3 text-[#F5AC0E] text-sm lg:text-base font-medium shadow-[inset_0_1px_0_rgba(245,172,14,0.05)]">
             {isBotTurn && gameMode !== "multiplayer" && <p className="text-center text-zinc-400">{t("game.bot.turn")}</p>}
             {isBotTurn && gameMode === "multiplayer" && <p className="text-center text-zinc-400">{t("game.mp.waiting", { name: currentPlayer.name })}</p>}
             {!isBotTurn && gamePhase === "SELECT_CARD" && <p className="text-center">{t("game.select_card")}</p>}

@@ -277,28 +277,35 @@ export default function BoardPosition({
         </div>
       )}
 
-      {/* Cake bombs — offset slightly from the character position; hidden from pointer events during drag */}
-      {cakes.map((cake, index) => (
-        <div
-          key={cake.id}
-          className={`absolute w-8 h-8 rounded-full border-2 border-white flex items-center justify-center cake-bomb-blink overflow-hidden ${isDragActive ? "pointer-events-none" : "cursor-pointer"}`}
-          style={{
-            backgroundColor: cake.color,
-            left: `calc(${style.left} + ${index === 0 ? "-20px" : "20px"})`,
-            top: `calc(${style.top} + ${index === 0 ? "-20px" : "20px"})`,
-            zIndex: 5,
-          }}
-          title={`Cake placed on round ${cake.roundPlaced} — explodes next round`}
-          onClick={(e) => { if (isCakeSelectMode) { e.stopPropagation(); if (onCakeClick) onCakeClick(cake.id) } else { onClick() } }}
-        >
-          <img
-            src="/images/Sprites/cake.png"
-            alt="cake bomb"
-            className="w-full h-full object-cover"
-            draggable={false}
-          />
-        </div>
-      ))}
+      {/* Cake bombs — positioned inward from the seat using itemIconPositionMap */}
+      {cakes.map((cake, index) => {
+        const iconPos = itemIconPositionMap[position.id]
+        return (
+          <div
+            key={cake.id}
+            className={`absolute w-9 h-9 cake-bomb-blink ${isDragActive ? "pointer-events-none" : "cursor-pointer"}`}
+            style={iconPos ? {
+              left: `${iconPos.x}%`,
+              top: `${iconPos.y}%`,
+              transform: `translate(calc(-50% + ${(index - (cakes.length - 1) / 2) * 22}px), -50%)`,
+              zIndex: 5,
+            } : {
+              left: `calc(${style.left} + ${index === 0 ? "-20px" : "20px"})`,
+              top: `calc(${style.top} + ${index === 0 ? "-20px" : "20px"})`,
+              zIndex: 5,
+            }}
+            title="Cake bomb — explodes at the start of the placer's next turn"
+            onClick={(e) => { if (isCakeSelectMode) { e.stopPropagation(); if (onCakeClick) onCakeClick(cake.id) } else { onClick() } }}
+          >
+            <img
+              src="/images/Sprites/cake.png"
+              alt="cake bomb"
+              className="w-full h-full object-contain"
+              draggable={false}
+            />
+          </div>
+        )
+      })}
     </>
   )
 }

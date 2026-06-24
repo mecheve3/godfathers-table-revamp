@@ -113,8 +113,8 @@ export default function PlayerHand({ cards, onSelectCard, selectedCardId, disabl
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); setInfoCardId(card.id) }}
-                className="absolute bottom-0.5 right-0.5 w-5 h-5 lg:w-5 lg:h-5 rounded-full bg-[#F5AC0E]/90 text-[#2B1710] text-[10px] font-bold flex items-center justify-center hover:bg-[#F5AC0E] active:bg-[#F5AC0E] transition-colors z-10 leading-none"
-                style={{ minWidth: 20, minHeight: 20 }}
+                className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#F5AC0E] text-[#2B1710] text-xs font-black flex items-center justify-center hover:bg-[#F5AC0E]/80 active:bg-[#F5AC0E]/70 transition-colors z-10 leading-none shadow-md"
+                style={{ minWidth: 24, minHeight: 24 }}
                 title={t("card.info")}
               >
                 ?

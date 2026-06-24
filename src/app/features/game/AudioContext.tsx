@@ -1,18 +1,26 @@
 import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from 'react'
-import { setSfxEnabled } from './sfx'
+import { setSfxEnabled, setSfxVolumeMultiplier } from './sfx'
 
 interface AudioContextType {
   musicEnabled: boolean
   sfxEnabled: boolean
+  musicVolume: number
+  sfxVolume: number
   toggleMusic: () => void
   toggleSfx: () => void
+  setMusicVolume: (v: number) => void
+  setSfxVolume: (v: number) => void
 }
 
 const AudioCtx = createContext<AudioContextType | undefined>(undefined)
 
+const DEFAULT_MUSIC_VOLUME = 0.15
+
 export function AudioProvider({ children }: { children: ReactNode }) {
   const [musicEnabled, setMusicEnabled] = useState(true)
   const [sfxOn, setSfxOn] = useState(true)
+  const [musicVolume, setMusicVolumeState] = useState(DEFAULT_MUSIC_VOLUME)
+  const [sfxVolume, setSfxVolumeState] = useState(1)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const startedRef = useRef(false)
   // Ref mirror so tryPlay can read the latest value after React state settles
@@ -24,7 +32,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const audio = new Audio('/sounds/music/gamemusic.mp3')
     audio.loop = true
-    audio.volume = 0.35
+    audio.volume = DEFAULT_MUSIC_VOLUME
     audioRef.current = audio
 
     const tryPlay = () => {
@@ -61,16 +69,24 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     }
   }, [musicEnabled])
 
-  // Sync sfx module flag
+  // Apply music volume changes live
   useEffect(() => {
-    setSfxEnabled(sfxOn)
-  }, [sfxOn])
+    const audio = audioRef.current
+    if (!audio) return
+    audio.volume = musicVolume
+  }, [musicVolume])
+
+  // Sync sfx module flags
+  useEffect(() => { setSfxEnabled(sfxOn) }, [sfxOn])
+  useEffect(() => { setSfxVolumeMultiplier(sfxVolume) }, [sfxVolume])
 
   const toggleMusic = () => setMusicEnabled((v) => !v)
   const toggleSfx = () => setSfxOn((v) => !v)
+  const setMusicVolume = (v: number) => setMusicVolumeState(Math.max(0, Math.min(1, v)))
+  const setSfxVolume = (v: number) => setSfxVolumeState(Math.max(0, Math.min(1, v)))
 
   return (
-    <AudioCtx.Provider value={{ musicEnabled, sfxEnabled: sfxOn, toggleMusic, toggleSfx }}>
+    <AudioCtx.Provider value={{ musicEnabled, sfxEnabled: sfxOn, musicVolume, sfxVolume, toggleMusic, toggleSfx, setMusicVolume, setSfxVolume }}>
       {children}
     </AudioCtx.Provider>
   )

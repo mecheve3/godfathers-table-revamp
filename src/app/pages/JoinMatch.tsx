@@ -9,6 +9,7 @@ import { GameLayout, ScreenTitle } from '../components/GameLayout'
 import { useMatch } from '../features/match/MatchContext'
 import { fetchRoom } from '../features/multiplayer/api'
 import { useLang } from '../context/LanguageContext'
+import { containsBadWord } from '../features/game/badwords'
 
 export default function JoinMatch() {
   const navigate = useNavigate()
@@ -56,7 +57,12 @@ export default function JoinMatch() {
   }
 
   const handleJoin = () => {
-    const finalName = playerName.trim() || t('join.name.placeholder')
+    const trimmed = playerName.trim()
+    if (trimmed && containsBadWord(trimmed)) {
+      toast.error(t('join.name.error.badword'))
+      return
+    }
+    const finalName = trimmed || t('join.name.placeholder')
     const playerId = `player-${Date.now()}`
     setConfig({ mode: 'join', roomCode: roomCode.trim().toUpperCase(), playerName: finalName, hostId: playerId })
     toast.success('Joining match…')
