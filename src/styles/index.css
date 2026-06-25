@@ -172,6 +172,15 @@
   color: rgba(199,154,74,0.45);
 }
 
+/* ── Instruction box active-turn glow ──────────────────────────────────────── */
+@keyframes instruction-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245,172,14,0.0);    border-color: rgba(245,172,14,0.25); }
+  50%       { box-shadow: 0 0 14px 4px rgba(245,172,14,0.22); border-color: rgba(245,172,14,0.6);  }
+}
+.instruction-active {
+  animation: instruction-pulse 2s ease-in-out infinite;
+}
+
 /* ── Set Stage ambient candlelight glow ─────────────────────────────────────── */
 @keyframes candle-flicker {
   0%, 100% { opacity: 0.16; }

@@ -134,6 +134,11 @@ const getGangsterTypeName = (type: GangsterType) => {
 const getGangsterImage = (playerId: string, type: GangsterType, variant?: 2 | 3) =>
   `/images/players/${getTeam(playerId)}/${getGangsterTypeName(type)}${variant ?? ""}.png`
 
+const getCakeImage = (ownerId: string): string => {
+  const team = getTeam(ownerId)
+  return team !== "gray" ? `/images/cakes/${team}.png` : "/images/Sprites/cake.png"
+}
+
 export default function BoardPosition({
   position, gameState, selected, highlighted, onClick, animClass, spriteOverlay, spriteLarge,
   onCakeClick, draggable, onDragStart, onDragOver, onDrop, hideOccupant, previewGangster, pillSelected,
@@ -298,7 +303,7 @@ export default function BoardPosition({
             onClick={(e) => { if (isCakeSelectMode) { e.stopPropagation(); if (onCakeClick) onCakeClick(cake.id) } else { onClick() } }}
           >
             <img
-              src="/images/Sprites/cake.png"
+              src={getCakeImage(cake.ownerId)}
               alt="cake bomb"
               className="w-full h-full object-contain"
               draggable={false}

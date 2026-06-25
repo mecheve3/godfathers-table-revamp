@@ -1322,7 +1322,10 @@ export const getValidPillTargets = (
     if (alreadyTargetedIds.includes(gangsterId)) continue
     const ownerPlayer = gameState.players.find((p) => p.id === pos.occupiedBy!.playerId)
     const gangster = ownerPlayer?.gangsters.find((g) => g.id === gangsterId)
-    if (gangster?.status === "sleeping") continue
+    // Allow targeting a sleeping gangster only if a DIFFERENT player put them to sleep
+    // (second pill from another player eliminates them permanently).
+    // Skip if same player dosed them — re-dosing has no extra effect.
+    if (gangster?.status === "sleeping" && (!gangster.sleepingFrom || gangster.sleepingFrom === currentPlayerId)) continue
     results.push(gangsterId)
   }
   return results

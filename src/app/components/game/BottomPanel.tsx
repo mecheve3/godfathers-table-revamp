@@ -115,7 +115,7 @@ export default function BottomPanel({
             {isBotTurn && gameMode === "multiplayer" && <span className="ml-2 text-xs text-zinc-400 animate-pulse">{t("game.bot.waiting")}</span>}
           </div>
 
-          <div className="p-2.5 lg:p-4 bg-[#0e0604] border border-[#F5AC0E]/25 rounded-lg mb-1.5 lg:mb-3 text-[#F5AC0E] text-sm lg:text-base font-medium shadow-[inset_0_1px_0_rgba(245,172,14,0.05)]">
+          <div className={`p-2.5 lg:p-4 bg-[#0e0604] border border-[#F5AC0E]/25 rounded-lg mb-1.5 lg:mb-3 text-[#F5AC0E] text-sm lg:text-base font-medium${!isBotTurn && !["SEATING_SELECT_GANGSTER","SEATING_SELECT_SEAT","SEATING_CONFIRM"].includes(gamePhase) ? " instruction-active" : ""}`}>
             {isBotTurn && gameMode !== "multiplayer" && <p className="text-center text-zinc-400">{t("game.bot.turn")}</p>}
             {isBotTurn && gameMode === "multiplayer" && <p className="text-center text-zinc-400">{t("game.mp.waiting", { name: currentPlayer.name })}</p>}
             {!isBotTurn && gamePhase === "SELECT_CARD" && <p className="text-center">{t("game.select_card")}</p>}

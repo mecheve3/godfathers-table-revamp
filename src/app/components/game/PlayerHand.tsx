@@ -3,6 +3,7 @@ import { clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 const cn = (...args: Parameters<typeof clsx>) => twMerge(clsx(...args))
 import { useMemo, useState } from "react"
+import { CircleHelp } from "lucide-react"
 import { isCardPlayable } from "../../features/game/game-logic"
 import { useLang } from "../../context/LanguageContext"
 
@@ -113,11 +114,11 @@ export default function PlayerHand({ cards, onSelectCard, selectedCardId, disabl
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); setInfoCardId(card.id) }}
-                className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#F5AC0E] text-[#2B1710] text-xs font-black flex items-center justify-center hover:bg-[#F5AC0E]/80 active:bg-[#F5AC0E]/70 transition-colors z-10 leading-none shadow-md"
-                style={{ minWidth: 24, minHeight: 24 }}
+                className="absolute -bottom-1 -right-1 z-10 text-[#F5AC0E] hover:text-white transition-colors"
+                style={{ filter: "drop-shadow(0 0 3px rgba(0,0,0,0.9))" }}
                 title={t("card.info")}
               >
-                ?
+                <CircleHelp className="w-5 h-5" strokeWidth={2.5} />
               </button>
             </div>
           )
