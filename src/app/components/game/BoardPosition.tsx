@@ -288,11 +288,11 @@ export default function BoardPosition({
         return (
           <div
             key={cake.id}
-            className={`absolute w-9 h-9 cake-bomb-blink ${isDragActive ? "pointer-events-none" : "cursor-pointer"}`}
+            className={`absolute w-12 h-12 cake-bomb-blink ${isDragActive ? "pointer-events-none" : "cursor-pointer"}`}
             style={iconPos ? {
               left: `${iconPos.x}%`,
               top: `${iconPos.y}%`,
-              transform: `translate(calc(-50% + ${(index - (cakes.length - 1) / 2) * 22}px), -50%)`,
+              transform: `translate(calc(-50% + ${(index - (cakes.length - 1) / 2) * 28}px), -50%)`,
               zIndex: 5,
             } : {
               left: `calc(${style.left} + ${index === 0 ? "-20px" : "20px"})`,

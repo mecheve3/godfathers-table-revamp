@@ -85,9 +85,10 @@
 }
 
 /* ── Cake bomb pulsing indicator ───────────────────────────────────────────── */
+/* drop-shadow follows the PNG alpha so no rectangular glow box appears       */
 @keyframes cake-bomb-pulse {
-  0%, 100% { box-shadow: 0 0 4px 2px rgba(255, 200, 0, 0.7); transform: scale(1);    }
-  50%       { box-shadow: 0 0 10px 5px rgba(255, 80, 0, 0.9); transform: scale(1.12); }
+  0%, 100% { filter: drop-shadow(0 0 5px rgba(255, 200, 0, 0.9));  transform: scale(1);    }
+  50%       { filter: drop-shadow(0 0 10px rgba(255, 90, 0, 1));   transform: scale(1.12); }
 }
 .cake-bomb-blink {
   animation: cake-bomb-pulse 0.9s ease-in-out infinite;
