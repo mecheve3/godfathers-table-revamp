@@ -1,6 +1,9 @@
 {
   "landing.welcome": "Welcome to",
   "landing.title": "Godfather's Table",
+  "landing.eyebrow": "By Invitation Only",
+  "landing.tagline": "Every family needs a head of the table.",
+  "landing.quick.caption": "Straight to the Table",
   "landing.login": "Login",
   "landing.signup": "Sign Up",
   "landing.guest": "Play as Guest",

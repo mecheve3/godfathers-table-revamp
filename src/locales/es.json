@@ -1,6 +1,9 @@
 {
   "landing.welcome": "Bienvenido a",
   "landing.title": "La Mesa del Padrino",
+  "landing.eyebrow": "Solo por Invitación",
+  "landing.tagline": "Toda familia necesita un jefe de mesa.",
+  "landing.quick.caption": "Directo a la Mesa",
   "landing.login": "Iniciar sesión",
   "landing.signup": "Registrarse",
   "landing.guest": "Jugar como invitado",
