@@ -1,5 +1,4 @@
 import type { Player, Gangster, GameState, Card, GamePhase, CakeBomb } from "../../features/game/types"
-import { useState } from "react"
 import { Trash2 } from "lucide-react"
 import PlayerHand from "./PlayerHand"
 import { useLang } from "../../context/LanguageContext"
@@ -35,7 +34,6 @@ interface BottomPanelProps {
   onSeatingBack?: () => void
   humanPlayer?: Player
   gameMode?: "hotseat" | "solo" | "multiplayer"
-  botLog?: string[]
   newlyDealtCardIds?: string[]
   showWrapUp?: boolean
   onWrapUp?: () => void
@@ -47,10 +45,9 @@ export default function BottomPanel({
   onCancelAction, onSkipSecondDisplacement, onSelectDiscardCard, onConfirmDiscard, gameOver,
   validGangsters, validTargets, canPlaySecondDisplacement, gameState, secondActionTaken,
   pillsApplied, pendingPillTargetIds, onSkipPill, seatingCurrentPlayerName,
-  seatingSelectedGangsterId, isSeatingBotTurn, onSeatingConfirm, onSeatingBack, humanPlayer, gameMode, botLog,
+  seatingSelectedGangsterId, isSeatingBotTurn, onSeatingConfirm, onSeatingBack, humanPlayer, gameMode,
   newlyDealtCardIds = [], showWrapUp, onWrapUp,
 }: BottomPanelProps) {
-  const [logExpanded, setLogExpanded] = useState(false)
   const { t } = useLang()
 
   if (gameOver) return null
@@ -70,7 +67,7 @@ export default function BottomPanel({
         ${variant === "primary"
           ? "bg-[#F5AC0E] text-[#2B1710] hover:bg-[#F5AC0E]/80"
           : variant === "discard"
-          ? "bg-zinc-800/80 text-zinc-500 border border-zinc-700/50 hover:bg-red-950/30 hover:text-zinc-300 hover:border-red-900/40"
+          ? "bg-red-950/40 text-red-200 border border-red-600/70 hover:bg-red-900/50 hover:border-red-500"
           : "bg-zinc-700 text-white hover:bg-zinc-600"}`}
     >
       {children}
@@ -223,20 +220,6 @@ export default function BottomPanel({
         </div>
       </div>
 
-      {gameMode === "solo" && botLog && botLog.length > 0 && (
-        <div className="border-t border-zinc-700 px-4 pt-2 pb-1">
-          <button onClick={() => setLogExpanded((v) => !v)} className="text-[10px] text-zinc-500 hover:text-zinc-300 font-mono uppercase tracking-widest w-full text-left flex items-center gap-1">
-            <span>{logExpanded ? "▾" : "▸"}</span> {t("game.bot_log", { count: String(botLog.length) })}
-          </button>
-          {logExpanded && (
-            <div className="mt-1 max-h-24 overflow-y-auto space-y-0.5">
-              {botLog.slice(-20).map((entry, i) => (
-                <p key={i} className="font-mono text-[10px] text-zinc-400 leading-tight">{entry}</p>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   )
 }

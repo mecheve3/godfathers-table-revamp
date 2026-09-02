@@ -113,7 +113,7 @@ export default function CreateMatch() {
                 <p className="text-xs uppercase tracking-[0.35em] font-serif" style={{ color: '#c79a4a' }}>
                   {t('setup.players')}
                 </p>
-                <div className="flex gap-4">
+                <div className="grid grid-cols-2 gap-3 sm:flex sm:gap-4">
                   {PLAYER_COUNTS.map((count) => (
                     <MatchOptionCard
                       key={count}
@@ -121,7 +121,7 @@ export default function CreateMatch() {
                       subtitle={t('setup.players.label')}
                       selected={maxPlayers === count}
                       onClick={() => setMaxPlayers(count)}
-                      className="h-40 w-40"
+                      className="h-32 w-32 sm:h-40 sm:w-40"
                     />
                   ))}
                 </div>
@@ -142,13 +142,13 @@ export default function CreateMatch() {
                 <p className="text-xs uppercase tracking-[0.35em] font-serif" style={{ color: '#c79a4a' }}>
                   {t('setup.seating')}
                 </p>
-                <div className="flex gap-6">
+                <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 w-full max-w-xs sm:max-w-none sm:w-auto items-stretch">
                   <MatchOptionCard
                     title={t('setup.seating.preset')}
                     subtitle={t('setup.seating.preset.sub')}
                     selected={seating === 'automatic'}
                     onClick={() => setSeating('automatic')}
-                    className="h-44 w-56"
+                    className="h-32 w-full sm:h-44 sm:w-56"
                     titleSize="text-3xl"
                   />
                   <MatchOptionCard
@@ -156,7 +156,7 @@ export default function CreateMatch() {
                     subtitle={t('setup.seating.manual.sub')}
                     selected={seating === 'manual'}
                     onClick={() => setSeating('manual')}
-                    className="h-44 w-56"
+                    className="h-32 w-full sm:h-44 sm:w-56"
                     titleSize="text-3xl"
                   />
                 </div>

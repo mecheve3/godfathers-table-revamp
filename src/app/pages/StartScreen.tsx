@@ -122,25 +122,6 @@ export default function StartScreen() {
       {/* ── Content stack ─────────────────────────────────────────────── */}
       <div className="relative flex flex-col items-center px-6 pb-4" style={{ zIndex: 10 }}>
 
-        {/* Eyebrow */}
-        <motion.p
-          {...(prefersReduced ? {} : {
-            initial:    { opacity: 0, y: -10 },
-            animate:    { opacity: 1, y: 0 },
-            transition: { delay: 0.45, duration: 0.8, ease: 'easeOut' },
-          })}
-          style={{
-            fontFamily: "'Cinzel', 'Palatino Linotype', serif",
-            fontSize: '0.57rem',
-            letterSpacing: '0.55em',
-            color: '#a07838',
-            textTransform: 'uppercase',
-            marginBottom: '0.9rem',
-          }}
-        >
-          {t('landing.eyebrow')}
-        </motion.p>
-
         {/* Wordmark — sheen sweep defined in index.css */}
         <motion.div
           {...(prefersReduced ? {} : {
@@ -174,33 +155,13 @@ export default function StartScreen() {
             animate:    { opacity: 1, scaleX: 1 },
             transition: { delay: 1.0, duration: 0.6, ease: 'easeOut' },
           })}
-          className="flex items-center gap-3 mb-4"
-          style={{ width: 'min(340px, 82vw)' }}
+          className="flex items-center gap-3"
+          style={{ width: 'min(340px, 82vw)', marginBottom: '2.8rem' }}
         >
           <div style={{ flex: 1, height: 1, background: 'linear-gradient(to right, transparent, rgba(199,154,74,0.65))' }} />
           <div style={{ width: 8, height: 8, transform: 'rotate(45deg)', background: '#b23b2e', flexShrink: 0 }} />
           <div style={{ flex: 1, height: 1, background: 'linear-gradient(to left, transparent, rgba(199,154,74,0.65))' }} />
         </motion.div>
-
-        {/* Tagline */}
-        <motion.p
-          {...(prefersReduced ? {} : {
-            initial:    { opacity: 0 },
-            animate:    { opacity: 1 },
-            transition: { delay: 1.1, duration: 0.9, ease: 'easeOut' },
-          })}
-          style={{
-            fontFamily: "'EB Garamond', Georgia, serif",
-            fontStyle: 'italic',
-            fontSize: '1.05rem',
-            color: '#9a7030',
-            letterSpacing: '0.015em',
-            marginBottom: '2.8rem',
-            textAlign: 'center',
-          }}
-        >
-          {t('landing.tagline')}
-        </motion.p>
 
         {/* Quick Match — primary CTA */}
         <motion.div

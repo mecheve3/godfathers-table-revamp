@@ -81,11 +81,14 @@ function computeActionSeats(action: Action, state: GameState): ActionSummary {
 
 /** Sprite image path for each card type — rendered as a blinking overlay on affected seats */
 const CARD_SPRITE: Partial<Record<string, string>> = {
-  KNIFE:        '/images/Sprites/knifesprite.png',
-  GUN:          '/images/Sprites/gunsprite.png',
-  PASS_CAKE:    '/images/Sprites/cake.png',
-  EXPLODE_CAKE: '/images/Sprites/explosionsprite.png',
-  DISPLACEMENT: '/images/Sprites/displacementsprite.png',
+  KNIFE:          '/images/Sprites/knifesprite.png',
+  GUN:            '/images/Sprites/gunsprite.png',
+  PASS_CAKE:      '/images/Sprites/cake.png',
+  EXPLODE_CAKE:   '/images/Sprites/explosionsprite.png',
+  DISPLACEMENT:   '/images/Sprites/displacementsprite.png',
+  // Reuses the card art as a momentary pop on the target(s) — fires even when the target
+  // was already asleep, since that's the case where the dimmed sprite gives no other cue.
+  SLEEPING_PILLS: '/images/cards/sleepingpills.png',
 }
 
 /** Shown on a seat when the occupant is eliminated (dedicated elimination sprite) */
@@ -233,7 +236,6 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   const [pillsApplied, setPillsApplied] = useState<number>(0)
   const [pendingPillTargetIds, setPendingPillTargetIds] = useState<string[]>([])
   const [validPillTargets, setValidPillTargets] = useState<string[]>([])
-  const [botLog, setBotLog] = useState<string[]>([])
   const [seatAnimations, setSeatAnimations] = useState<Record<number, string>>({})
   const [seatSpriteOverlays, setSeatSpriteOverlays] = useState<Record<number, string>>({})
   const [seatSpriteOverlaysLarge, setSeatSpriteOverlaysLarge] = useState<Record<number, boolean>>({})
@@ -780,8 +782,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     return (fromIdx + 1) % total
   }
 
-  const executeSingleBotTurn = (state: GameState, playerIndex: number): { newState: GameState; nextPlayerIndex: number; logs: string[]; actionSummaries: ActionSummary[]; logEntryData: Omit<LogEntry, "id" | "highlighted">[]; playedCards: Array<{ cardType: string; playerId: string }>; stateAfterFirstAction: GameState | null; policeRaidPlayed: boolean } => {
-    const logs: string[] = []
+  const executeSingleBotTurn = (state: GameState, playerIndex: number): { newState: GameState; nextPlayerIndex: number; actionSummaries: ActionSummary[]; logEntryData: Omit<LogEntry, "id" | "highlighted">[]; playedCards: Array<{ cardType: string; playerId: string }>; stateAfterFirstAction: GameState | null; policeRaidPlayed: boolean } => {
     const actionSummaries: ActionSummary[] = []
     const logEntryData: Omit<LogEntry, "id" | "highlighted">[] = []
     const playedCards: Array<{ cardType: string; playerId: string }> = []
@@ -802,7 +803,6 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
           newState.discardPile.push(discarded)
           if (newState.deck.length > 0) { const newCard = newState.deck.shift(); if (newCard) p.hand.push(newCard) }
           currentState = newState
-          logs.push(`${botPlayer.name}: no valid play — discarded ${discarded.type.replace(/_/g, " ")}`)
         }
       }
     } else {
@@ -812,7 +812,6 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       currentState = playCard(currentState, botId, firstPlay.cardId)
       currentState = performAction(currentState, firstPlay.action)
       logEntryData.push({ round: state.turn, playerId: botId, playerName: botPlayer.name, message: buildActionLog(firstPlay.action, preFirst, currentState, t), type: "action" })
-      logs.push(`${botPlayer.name}: ${firstPlay.log}`)
       stateAfterFirstAction = currentState  // snapshot for sequential board update
       const secondPlay = decideBotSecondPlay(currentState, botId)
       if (secondPlay) {
@@ -822,7 +821,6 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         currentState = playCard(currentState, botId, secondPlay.cardId)
         currentState = performAction(currentState, secondPlay.action)
         logEntryData.push({ round: state.turn, playerId: botId, playerName: botPlayer.name, message: buildActionLog(secondPlay.action, preSecond, currentState, t), type: "action" })
-        logs.push(`${botPlayer.name} (2nd): ${secondPlay.log}`)
       }
     }
 
@@ -838,7 +836,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     // When POLICE_RAID was played, preserve "SEATING_SELECT_GANGSTER" phase so
     // the bot-seating useEffect can handle re-seating all players.
     finalState.selectedCakeId = undefined
-    return { newState: finalState, nextPlayerIndex, logs, actionSummaries, logEntryData, playedCards, stateAfterFirstAction, policeRaidPlayed }
+    return { newState: finalState, nextPlayerIndex, actionSummaries, logEntryData, playedCards, stateAfterFirstAction, policeRaidPlayed }
   }
 
   useEffect(() => {
@@ -854,7 +852,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     const timer = setTimeout(() => {
       const latestState = gameStateRef.current
       if (latestState.currentPhase !== "SELECT_CARD") return
-      const { newState, nextPlayerIndex, logs, actionSummaries, logEntryData, playedCards, stateAfterFirstAction, policeRaidPlayed } = executeSingleBotTurn(latestState, currentPlayerIndex)
+      const { newState, nextPlayerIndex, actionSummaries, logEntryData, playedCards, stateAfterFirstAction, policeRaidPlayed } = executeSingleBotTurn(latestState, currentPlayerIndex)
 
       // Timing constants
       const ACTION_STAGGER = 2800    // ms between each action's visual effects
@@ -936,7 +934,6 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
 
       // Log entries don't need visual sync — write them immediately
       for (const entry of logEntryData) addLogEntry(entry)
-      setBotLog((prev) => [...prev.slice(-80), ...logs])
 
       // Sequential board updates: after action 0 animation finishes, update the board
       // to show the result of action 0 so action 1's animation plays on the updated board.
@@ -1718,7 +1715,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     setSelectedDirection(null); setTargetPositionId(null); setGameOver(false)
     setValidGangsters([]); setValidTargets([]); setValidCakes([]); setValidDirections([])
     setPillsApplied(0); setPendingPillTargetIds([]); setValidPillTargets([])
-    setFinalStandings([]); setSecondActionTaken(false); setBotLog([]); setSeatAnimations([]); setPoliceRaidActive(false); setLogEntries([]); setActiveBotPlayerId(null); setCenterCard(null); setNewlyDealtCardIds([]); setSeatSpriteOverlaysLarge({})
+    setFinalStandings([]); setSecondActionTaken(false); setSeatAnimations([]); setPoliceRaidActive(false); setLogEntries([]); setActiveBotPlayerId(null); setCenterCard(null); setNewlyDealtCardIds([]); setSeatSpriteOverlaysLarge({})
     setSeatingSelectedGangsterId(null); setSeatingCurrentIdx(0)
     if (seatingType === "manual") {
       const order = newGameState.players.map((p) => p.id)
@@ -1748,6 +1745,18 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   const isDisplacementConfirm = gameState.currentPhase === "CONFIRM_ACTION" && selectedCard?.type === "DISPLACEMENT"
   const selectedGangsterPreviewSrc = isDisplacementConfirm && selectedGangster
     ? `/images/players/${TEAM_FOR_PLAYER[gameState.players[currentPlayerIndex].id] ?? 'gray'}/${TYPE_NAME_MAP[selectedGangster.type] ?? 'unknown'}.png`
+    : null
+
+  // Seating preview: while a dropped/selected gangster awaits seating confirmation, blink it
+  // in place at the seat it was dropped on — otherwise there's no indication of who the
+  // confirm prompt refers to (the seat is still empty until confirm actually runs).
+  const isSeatingConfirm = gameState.currentPhase === "SEATING_CONFIRM"
+  const seatingConfirmPlayerId = seatingPlayerOrder[seatingCurrentIdx] ?? null
+  const seatingConfirmGangster = isSeatingConfirm && seatingSelectedGangsterId && seatingConfirmPlayerId
+    ? gameState.players.find((p) => p.id === seatingConfirmPlayerId)?.gangsters.find((g) => g.id === seatingSelectedGangsterId) ?? null
+    : null
+  const seatingPreviewSrc = seatingConfirmGangster
+    ? `/images/players/${TEAM_FOR_PLAYER[seatingConfirmPlayerId!] ?? 'gray'}/${TYPE_NAME_MAP[seatingConfirmGangster.type] ?? 'unknown'}.png`
     : null
 
   // Lock body scroll while game is active
@@ -1956,7 +1965,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
           <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
             <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-hidden">
               {/* Game Board */}
-              <div className="lg:w-[75%] flex flex-col min-h-0 overflow-hidden">
+              <div className="flex-1 lg:flex-initial lg:w-[75%] flex flex-col min-h-0 overflow-hidden">
                 <div className="flex-1 min-h-0 bg-gradient-to-b from-[#3D2314] to-[#2B1710] rounded-lg flex items-center overflow-hidden">
                   <div
                     ref={boardContainerRef}
@@ -2032,6 +2041,8 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                         previewGangster={
                           isDisplacementConfirm && position.id === targetPositionId && selectedGangsterPreviewSrc
                             ? { imageSrc: selectedGangsterPreviewSrc, playerId: gameState.players[currentPlayerIndex].id }
+                            : isSeatingConfirm && position.id === targetPositionId && seatingPreviewSrc
+                            ? { imageSrc: seatingPreviewSrc, playerId: seatingConfirmPlayerId ?? '' }
                             : undefined
                         }
                         onClick={() => handlePositionClick(position.id)}
@@ -2164,7 +2175,6 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                       : undefined
                 }
                 gameMode={gameMode}
-                botLog={botLog}
                 selectedGangster={selectedGangster}
                 selectedCard={selectedCard}
                 selectedCardId={selectedCardId}

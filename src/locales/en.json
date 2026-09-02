@@ -1,8 +1,6 @@
 {
   "landing.welcome": "Welcome to",
   "landing.title": "Godfather's Table",
-  "landing.eyebrow": "By Invitation Only",
-  "landing.tagline": "Every family needs a head of the table.",
   "landing.quick.caption": "Straight to the Table",
   "landing.login": "Login",
   "landing.signup": "Sign Up",
@@ -201,7 +199,6 @@
   "game.seating.seat.hint": "Click a highlighted seat on the board",
   "game.seating.confirm": "Confirm placement?",
   "game.seating.confirm.hint": "Place the gangster in the selected seat",
-  "game.bot_log": "Bot Log ({{count}})",
   "game.wrapup.btn": "Wrap Up",
   "game.wrapup.title": "Your crew has been wiped out",
   "game.wrapup.body": "Skip to the final results — you can still win if you've collected more money than anyone else.",

@@ -72,7 +72,7 @@ export const positionMap: Record<number, { x: number; y: number }> = {
 const itemIconPositionMap: Record<number, { x: number; y: number }> = {
   1: { x: 12.5, y: 50 },
   2: { x: 12.5, y: 35 },
-  3: { x: 16.5, y: 31 },
+  3: { x: 13.5, y: 31 },
   4: { x: 21.5, y: 31 },
   5: { x: 28, y: 31 },
   6: { x: 34, y: 31 },
@@ -98,7 +98,7 @@ const itemIconPositionMap: Record<number, { x: number; y: number }> = {
   26: { x: 34, y: 68 },
   27: { x: 28, y: 68 },
   28: { x: 21.5, y: 68 },
-  29: { x: 16.5, y: 68 },
+  29: { x: 13.5, y: 68 },
   30: { x: 12.5, y: 65 },
 }
 
@@ -182,7 +182,7 @@ export default function BoardPosition({
     <>
       {/* Invisible hit-area anchored at the seat point. No circle, no background. */}
       <div
-        className={`group absolute w-[3.75rem] h-[3.75rem] md:w-[5.25rem] md:h-[5.25rem] flex items-center justify-center cursor-pointer
+        className={`group absolute w-[3.75rem] h-[3.75rem] md:w-[4.25rem] md:h-[4.25rem] lg:w-[4.5rem] lg:h-[4.5rem] xl:w-[5.25rem] xl:h-[5.25rem] flex items-center justify-center cursor-pointer
           ${highlighted ? "animate-pulse" : ""}
           ${animClass ?? ""}`}
         style={{ ...style, opacity: isDragActive && draggable ? 1 : undefined }}
@@ -288,11 +288,11 @@ export default function BoardPosition({
         return (
           <div
             key={cake.id}
-            className={`absolute w-12 h-12 cake-bomb-blink ${isDragActive ? "pointer-events-none" : "cursor-pointer"}`}
+            className={`absolute w-24 h-24 cake-bomb-blink ${isDragActive ? "pointer-events-none" : "cursor-pointer"}`}
             style={iconPos ? {
               left: `${iconPos.x}%`,
               top: `${iconPos.y}%`,
-              transform: `translate(calc(-50% + ${(index - (cakes.length - 1) / 2) * 28}px), -50%)`,
+              transform: `translate(calc(-50% + ${(index - (cakes.length - 1) / 2) * 56}px), -50%)`,
               zIndex: 5,
             } : {
               left: `calc(${style.left} + ${index === 0 ? "-20px" : "20px"})`,

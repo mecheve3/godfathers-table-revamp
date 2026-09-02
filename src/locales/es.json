@@ -1,8 +1,6 @@
 {
   "landing.welcome": "Bienvenido a",
   "landing.title": "La Mesa del Padrino",
-  "landing.eyebrow": "Solo por Invitación",
-  "landing.tagline": "Toda familia necesita un jefe de mesa.",
   "landing.quick.caption": "Directo a la Mesa",
   "landing.login": "Iniciar sesión",
   "landing.signup": "Registrarse",
@@ -201,7 +199,6 @@
   "game.seating.seat.hint": "Haz clic en un asiento resaltado del tablero",
   "game.seating.confirm": "¿Confirmar ubicación?",
   "game.seating.confirm.hint": "Coloca el gángster en el asiento seleccionado",
-  "game.bot_log": "Log del bot ({{count}})",
   "game.wrapup.btn": "Terminar",
   "game.wrapup.title": "Tu banda ha sido eliminada",
   "game.wrapup.body": "Salta a los resultados finales — aún puedes ganar si has recaudado más dinero que los demás.",
