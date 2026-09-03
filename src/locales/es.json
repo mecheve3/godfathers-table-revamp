@@ -1,7 +1,8 @@
 {
   "landing.welcome": "Bienvenido a",
   "landing.title": "La Mesa del Padrino",
-  "landing.quick.caption": "Directo a la Mesa",
+  "viewport.gate.title": "Mejor en una Pantalla Más Grande",
+  "viewport.gate.message": "La Mesa del Padrino se disfruta mejor en una pantalla más grande. El soporte para móviles llegará pronto.",
   "landing.login": "Iniciar sesión",
   "landing.signup": "Registrarse",
   "landing.guest": "Jugar como invitado",
@@ -85,6 +86,7 @@
   "game.menu.restart": "Reiniciar partida",
   "game.menu.new": "Nueva partida",
   "game.menu.howto": "Cómo jugar",
+  "game.menu.feedback": "Comentarios",
   "game.menu.music_on": "Música activada",
   "game.menu.music_off": "Música desactivada",
   "game.menu.sfx_on": "Efectos activados",

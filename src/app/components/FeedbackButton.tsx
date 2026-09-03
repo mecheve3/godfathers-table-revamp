@@ -1,13 +1,31 @@
+import { useSyncExternalStore } from 'react'
 import { MessageSquare } from 'lucide-react'
 import { track } from '@/lib/analytics'
+import { router } from '../routes'
+import { FEEDBACK_URL } from '../constants'
 
-const FEEDBACK_URL = 'https://forms.gle/oUbCwUqneq1Z9jF16'
+// This button is mounted as a sibling of <RouterProvider> in App.tsx (so it can be
+// hidden globally with one guard rather than wired into every page), which puts it
+// outside the router's React context — so `useLocation()` isn't available here.
+// Read the current path directly off the router instance instead.
+function usePathname() {
+  return useSyncExternalStore(
+    (onChange) => router.subscribe(onChange),
+    () => router.state.location.pathname,
+  )
+}
 
 export default function FeedbackButton() {
+  const pathname = usePathname()
   const handleClick = () => {
     track('feedback_clicked')
     window.open(FEEDBACK_URL, '_blank', 'noopener,noreferrer')
   }
+
+  // The game screen has its own top-right players icon (below the `lg` breakpoint) that
+  // this fixed top-right button would otherwise sit on top of — it's reachable from the
+  // in-game hamburger menu instead (see TopPanel.tsx).
+  if (pathname === '/game') return null
 
   return (
     <button

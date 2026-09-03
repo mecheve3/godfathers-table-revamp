@@ -1,7 +1,8 @@
 {
   "landing.welcome": "Welcome to",
   "landing.title": "Godfather's Table",
-  "landing.quick.caption": "Straight to the Table",
+  "viewport.gate.title": "Best on a Larger Screen",
+  "viewport.gate.message": "Godfather's Table is best experienced on a larger screen. Mobile support is coming soon.",
   "landing.login": "Login",
   "landing.signup": "Sign Up",
   "landing.guest": "Play as Guest",
@@ -85,6 +86,7 @@
   "game.menu.restart": "Restart Game",
   "game.menu.new": "New Game",
   "game.menu.howto": "How to Play",
+  "game.menu.feedback": "Feedback",
   "game.menu.music_on": "Music On",
   "game.menu.music_off": "Music Off",
   "game.menu.sfx_on": "SFX On",

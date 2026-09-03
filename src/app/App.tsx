@@ -6,6 +6,7 @@ import { MatchProvider } from './features/match/MatchContext'
 import { AudioProvider } from './features/game/AudioContext'
 import { LanguageProvider } from './context/LanguageContext'
 import FeedbackButton from './components/FeedbackButton'
+import { MinViewportGate } from './components/MinViewportGate'
 
 export default function App() {
   return (
@@ -13,7 +14,9 @@ export default function App() {
       <UserProvider>
         <MatchProvider>
           <AudioProvider>
-            <RouterProvider router={router} />
+            <MinViewportGate>
+              <RouterProvider router={router} />
+            </MinViewportGate>
             <Toaster position="top-center" richColors />
             <FeedbackButton />
           </AudioProvider>

@@ -5,7 +5,6 @@ import { Volume2, VolumeX } from 'lucide-react'
 import { useAudio } from '../features/game/AudioContext'
 import { useLang } from '../context/LanguageContext'
 import { useMatch } from '../features/match/MatchContext'
-import FeedbackButton from '../components/FeedbackButton'
 
 export default function StartScreen() {
   const navigate = useNavigate()
@@ -195,17 +194,6 @@ export default function StartScreen() {
           >
             {t('menu.quick')}
           </button>
-          <p style={{
-            fontFamily: "'Oswald', 'Impact', sans-serif",
-            fontWeight: 300,
-            fontSize: '0.6rem',
-            letterSpacing: '0.45em',
-            color: '#7a5c30',
-            textTransform: 'uppercase',
-            marginTop: '0.6rem',
-          }}>
-            {t('landing.quick.caption')}
-          </p>
         </motion.div>
 
         {/* Ghost pair — Create Match & Join Match */}
@@ -224,7 +212,10 @@ export default function StartScreen() {
               style={{
                 flex: 1,
                 padding: '12px 16px',
-                background: 'transparent',
+                // Near-opaque (not fully transparent) so the felt-arc rim line behind this
+                // block can never show through — its position is viewport-height-dependent
+                // and isn't guaranteed to clear the button row on short screens.
+                background: 'rgba(15,8,2,0.92)',
                 color: '#c79a4a',
                 border: '1px solid rgba(199,154,74,0.35)',
                 borderRadius: '6px',
@@ -240,13 +231,13 @@ export default function StartScreen() {
                 const el = e.currentTarget
                 el.style.borderColor = 'rgba(199,154,74,0.7)'
                 el.style.color = '#e9cd86'
-                el.style.background = 'rgba(199,154,74,0.06)'
+                el.style.background = 'rgba(35,22,10,0.95)'
               }}
               onMouseLeave={e => {
                 const el = e.currentTarget
                 el.style.borderColor = 'rgba(199,154,74,0.35)'
                 el.style.color = '#c79a4a'
-                el.style.background = 'transparent'
+                el.style.background = 'rgba(15,8,2,0.92)'
               }}
             >
               {label}
@@ -256,8 +247,7 @@ export default function StartScreen() {
       </div>
 
       {/* ── Fixed chrome ──────────────────────────────────────────────── */}
-
-      <FeedbackButton />
+      {/* FeedbackButton is mounted globally in App.tsx */}
 
       {/* Language toggle */}
       <button

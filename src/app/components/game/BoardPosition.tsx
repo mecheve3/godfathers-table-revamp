@@ -261,7 +261,7 @@ export default function BoardPosition({
         {effectivelyEmpty && !previewGangster && (
           <div className={`rounded-full transition-all duration-150
             ${highlighted
-              ? "w-7 h-7 md:w-9 md:h-9 border-2 border-yellow-400 bg-yellow-400/15 opacity-100"
+              ? "w-7 h-7 md:w-8 md:h-8 xl:w-9 xl:h-9 border-2 border-yellow-400 bg-yellow-400/15 opacity-100"
               : "w-2 h-2 border border-zinc-400/40 opacity-25 group-hover:opacity-60"}`}
           />
         )}
@@ -270,7 +270,7 @@ export default function BoardPosition({
       {/* Sprite overlay — sibling outside the hit-area so it's never clipped */}
       {spriteOverlay && (
         <div
-          className={`absolute pointer-events-none flex items-center justify-center ${spriteLarge ? "w-32 h-32 md:w-36 md:h-36" : spriteOverlay?.includes('elimination') ? "w-10 h-10 md:w-12 md:h-12" : "w-20 h-20 md:w-24 md:h-24"}`}
+          className={`absolute pointer-events-none flex items-center justify-center ${spriteLarge ? "w-32 h-32 md:w-[8.25rem] md:h-[8.25rem] xl:w-36 xl:h-36" : spriteOverlay?.includes('elimination') ? "w-10 h-10 md:w-11 md:h-11 xl:w-12 xl:h-12" : "w-20 h-20 md:w-[5.25rem] md:h-[5.25rem] xl:w-24 xl:h-24"}`}
           style={{ ...style, zIndex: 30 }}
         >
           <img

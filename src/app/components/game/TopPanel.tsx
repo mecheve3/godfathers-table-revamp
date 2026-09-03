@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from "react"
-import { Menu, Music, Music2, Volume2, VolumeOff, BookOpen, X, ChevronLeft, ChevronRight, Users } from "lucide-react"
+import { Menu, Music, Music2, Volume2, VolumeOff, BookOpen, MessageSquare, X, ChevronLeft, ChevronRight, Users } from "lucide-react"
 import { useAudio } from "../../features/game/AudioContext"
 import { useLang } from "../../context/LanguageContext"
+import { FEEDBACK_URL } from "../../constants"
+import { track } from "../../../lib/analytics"
 
 interface TopPanelProps {
   onRestart: () => void
@@ -309,6 +311,18 @@ export default function TopPanel({ onRestart, onNewGame, showRulebookOnMount = f
               >
                 <BookOpen className="w-4 h-4 flex-shrink-0 text-[#C9A84C]" />
                 <span>{t("game.menu.howto")}</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  track('feedback_clicked')
+                  window.open(FEEDBACK_URL, '_blank', 'noopener,noreferrer')
+                  setMenuOpen(false)
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-white hover:bg-zinc-700 transition-colors"
+              >
+                <MessageSquare className="w-4 h-4 flex-shrink-0 text-[#C9A84C]" />
+                <span>{t("game.menu.feedback")}</span>
               </button>
 
               <div className="border-t border-zinc-700 my-1" />
