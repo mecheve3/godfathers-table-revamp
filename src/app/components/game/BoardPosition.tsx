@@ -205,7 +205,7 @@ export default function BoardPosition({
     <>
       {/* Invisible hit-area anchored at the seat point. No circle, no background. */}
       <div
-        className={`group absolute w-[3.75rem] h-[3.75rem] md:w-[4.25rem] md:h-[4.25rem] lg:w-[4.5rem] lg:h-[4.5rem] xl:w-[5.25rem] xl:h-[5.25rem] flex items-center justify-center cursor-pointer
+        className={`group absolute w-[7.78cqw] h-[7.78cqw] flex items-center justify-center cursor-pointer
           ${highlighted ? "animate-pulse" : ""}
           ${animClass ?? ""}`}
         style={{ ...style, opacity: isDragActive && draggable ? 1 : undefined }}
@@ -284,8 +284,8 @@ export default function BoardPosition({
         {effectivelyEmpty && !previewGangster && (
           <div className={`rounded-full transition-all duration-150
             ${highlighted
-              ? "w-7 h-7 md:w-8 md:h-8 xl:w-9 xl:h-9 border-2 border-yellow-400 bg-yellow-400/15 opacity-100"
-              : "w-2 h-2 border border-zinc-400/40 opacity-25 group-hover:opacity-60"}`}
+              ? "w-[3.33cqw] h-[3.33cqw] border-2 border-yellow-400 bg-yellow-400/15 opacity-100"
+              : "w-[0.74cqw] h-[0.74cqw] border border-zinc-400/40 opacity-25 group-hover:opacity-60"}`}
           />
         )}
       </div>
@@ -293,7 +293,7 @@ export default function BoardPosition({
       {/* Sprite overlay — sibling outside the hit-area so it's never clipped */}
       {spriteOverlay && (
         <div
-          className={`absolute pointer-events-none flex items-center justify-center ${spriteLarge ? "w-32 h-32 md:w-[8.25rem] md:h-[8.25rem] xl:w-36 xl:h-36" : spriteOverlay?.includes('elimination') ? "w-10 h-10 md:w-11 md:h-11 xl:w-12 xl:h-12" : "w-20 h-20 md:w-[5.25rem] md:h-[5.25rem] xl:w-24 xl:h-24"}`}
+          className={`absolute pointer-events-none flex items-center justify-center ${spriteLarge ? "w-[13.33cqw] h-[13.33cqw]" : spriteOverlay?.includes('elimination') ? "w-[4.44cqw] h-[4.44cqw]" : "w-[8.89cqw] h-[8.89cqw]"}`}
           style={{ ...style, zIndex: 30 }}
         >
           <img
@@ -318,11 +318,11 @@ export default function BoardPosition({
         return markers.map((src, index) => (
           <div
             key={src}
-            className="absolute w-8 h-8 md:w-9 md:h-9 pointer-events-none"
+            className="absolute w-[3.33cqw] h-[3.33cqw] pointer-events-none"
             style={{
               left: `${pos.x}%`,
               top: `${pos.y}%`,
-              transform: `translate(calc(-50% + ${(index - (markers.length - 1) / 2) * 22}px), -50%)`,
+              transform: `translate(calc(-50% + ${(index - (markers.length - 1) / 2) * 2.04}cqw), -50%)`,
               zIndex: 2,
             }}
           >
@@ -337,11 +337,16 @@ export default function BoardPosition({
         return (
           <div
             key={cake.id}
-            className={`absolute w-24 h-24 cake-bomb-blink ${isDragActive ? "pointer-events-none" : "cursor-pointer"}`}
+            className={`absolute w-[8.89cqw] h-[8.89cqw] ${isDragActive ? "pointer-events-none" : "cursor-pointer"}`}
             style={iconPos ? {
               left: `${iconPos.x}%`,
               top: `${iconPos.y}%`,
-              transform: `translate(calc(-50% + ${(index - (cakes.length - 1) / 2) * 56}px), -50%)`,
+              // NOTE: this translate must stay on a div with no CSS animation of its own —
+              // an animated `transform` (the pulse below) fully replaces this value for as
+              // long as it's running, silently dropping the -50%/-50% centering and leaving
+              // the cake anchored by its top-left corner instead of sitting centered in
+              // front of the seat. The pulse lives on the inner wrapper instead.
+              transform: `translate(calc(-50% + ${(index - (cakes.length - 1) / 2) * 5.19}cqw), -50%)`,
               zIndex: 5,
             } : {
               left: `calc(${style.left} + ${index === 0 ? "-20px" : "20px"})`,
@@ -351,12 +356,14 @@ export default function BoardPosition({
             title="Cake bomb — explodes at the start of the placer's next turn"
             onClick={(e) => { if (isCakeSelectMode) { e.stopPropagation(); if (onCakeClick) onCakeClick(cake.id) } else { onClick() } }}
           >
-            <img
-              src={getCakeImage(cake.ownerId)}
-              alt="cake bomb"
-              className="w-full h-full object-contain"
-              draggable={false}
-            />
+            <div className="cake-bomb-blink w-full h-full">
+              <img
+                src={getCakeImage(cake.ownerId)}
+                alt="cake bomb"
+                className="w-full h-full object-contain"
+                draggable={false}
+              />
+            </div>
           </div>
         )
       })}

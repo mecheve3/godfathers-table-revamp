@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { motion, useReducedMotion } from 'motion/react'
-import { Volume2, VolumeX } from 'lucide-react'
+import { Volume2, VolumeX, BookOpen } from 'lucide-react'
 import { useAudio } from '../features/game/AudioContext'
 import { useLang } from '../context/LanguageContext'
 import { useMatch } from '../features/match/MatchContext'
+import { HowToPlayModal } from '../components/game/HowToPlayModal'
 
 export default function StartScreen() {
   const navigate = useNavigate()
@@ -14,6 +15,7 @@ export default function StartScreen() {
   const prefersReduced = useReducedMotion() ?? false
 
   const [quickHover, setQuickHover] = useState(false)
+  const [howToPlayOpen, setHowToPlayOpen] = useState(false)
 
   const handleQuickMatch  = () => { setConfig({ mode: 'quick'  }); navigate('/create') }
   const handleCreateMatch = () => { setConfig({ mode: 'create' }); navigate('/create') }
@@ -249,6 +251,21 @@ export default function StartScreen() {
       {/* ── Fixed chrome ──────────────────────────────────────────────── */}
       {/* FeedbackButton is mounted globally in App.tsx */}
 
+      {/* Instructions toggle */}
+      <button
+        onClick={() => setHowToPlayOpen(true)}
+        aria-label={t('game.menu.howto')}
+        className="fixed bottom-28 right-4 z-50 w-10 h-10 rounded-full flex items-center justify-center"
+        style={{
+          background: 'rgba(15,8,2,0.85)',
+          border: '1px solid rgba(199,154,74,0.27)',
+          backdropFilter: 'blur(4px)',
+          color: '#c79a4a',
+        }}
+      >
+        <BookOpen className="w-4 h-4" />
+      </button>
+
       {/* Language toggle */}
       <button
         onClick={() => setLang(lang === 'en' ? 'es' : 'en')}
@@ -278,6 +295,10 @@ export default function StartScreen() {
       >
         {musicEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
       </button>
+
+      {howToPlayOpen && (
+        <HowToPlayModal onClose={() => setHowToPlayOpen(false)} finalLabelKey="btn.done" />
+      )}
     </div>
   )
 }

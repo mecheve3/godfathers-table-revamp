@@ -86,9 +86,9 @@ const CARD_SPRITE: Partial<Record<string, string>> = {
   PASS_CAKE:      '/images/Sprites/cake.png',
   EXPLODE_CAKE:   '/images/Sprites/explosionsprite.png',
   DISPLACEMENT:   '/images/Sprites/displacementsprite.png',
-  // Reuses the card art as a momentary pop on the target(s) — fires even when the target
-  // was already asleep, since that's the case where the dimmed sprite gives no other cue.
-  SLEEPING_PILLS: '/images/cards/sleepingpills.png',
+  // Momentary pop on the target(s) — fires even when the target was already asleep,
+  // since that's the case where the dimmed sprite gives no other cue.
+  SLEEPING_PILLS: '/images/Sprites/pills.png',
 }
 
 /** Shown on a seat when the occupant is eliminated (dedicated elimination sprite) */
@@ -1959,7 +1959,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                 <div className="flex-1 min-h-0 bg-gradient-to-b from-[#3D2314] to-[#2B1710] rounded-lg flex items-center overflow-hidden">
                   <div
                     ref={boardContainerRef}
-                    className="relative h-full aspect-[100/50] max-w-full mx-auto rounded-lg overflow-hidden"
+                    className="@container relative h-full aspect-[100/50] max-w-full mx-auto rounded-lg overflow-hidden"
                     style={{
                       backgroundImage: "url('/images/game-board-background.png')",
                       backgroundSize: "contain",
