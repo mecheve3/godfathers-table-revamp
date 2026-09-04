@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react"
 import type { Position, GameState, GangsterType } from "../../features/game/types"
+import { DRINK_SEAT_IDS } from "../../features/game/types"
 
 interface BoardPositionProps {
   position: Position
@@ -138,6 +139,28 @@ const getCakeImage = (ownerId: string): string => {
   const team = getTeam(ownerId)
   return team !== "gray" ? `/images/cakes/${team}.png` : "/images/Sprites/cake.png"
 }
+
+// Board marker art — drop-in swappable by filename only, per seat's Position.item /
+// DRINK_SEAT_IDS membership. Keep this the single place that maps item type -> asset.
+export const STATIC_ITEM_ICON: Partial<Record<string, string>> = {
+  BAR: "/images/items/bar.png",
+  GAMBLING_HOUSE: "/images/items/casino.png",
+  STRIP_CLUB: "/images/items/strip-club.png",
+  GUN: "/images/items/gun.png",
+  KNIFE: "/images/items/knife.png",
+  CASH_REGISTER: "/images/items/cash-register.png",
+}
+export const DRINK_GLASS_ICON = "/images/items/glass.png"
+
+/** Marker position: halfway between the seat and the (further-in) cake-bomb spot, so a
+ *  static business/weapon/drink marker never lands exactly on top of a placed cake bomb.
+ *  Derived from the two existing seat-relative maps rather than hand-placed. */
+export const staticItemPositionMap: Record<number, { x: number; y: number }> = Object.fromEntries(
+  Object.entries(positionMap).map(([id, seat]) => {
+    const inward = itemIconPositionMap[Number(id)] ?? seat
+    return [id, { x: (seat.x + inward.x) / 2, y: (seat.y + inward.y) / 2 }]
+  }),
+)
 
 export default function BoardPosition({
   position, gameState, selected, highlighted, onClick, animClass, spriteOverlay, spriteLarge,
@@ -281,6 +304,32 @@ export default function BoardPosition({
           />
         </div>
       )}
+
+      {/* Board markers — business/weapon item + drink glass, each its own positioned image
+          per Position.item / DRINK_SEAT_IDS (not baked into the board background art) */}
+      {(() => {
+        const markers = [
+          position.item ? STATIC_ITEM_ICON[position.item] : undefined,
+          DRINK_SEAT_IDS.includes(position.id) ? DRINK_GLASS_ICON : undefined,
+        ].filter((src): src is string => !!src)
+        if (markers.length === 0) return null
+        const pos = staticItemPositionMap[position.id]
+        if (!pos) return null
+        return markers.map((src, index) => (
+          <div
+            key={src}
+            className="absolute w-8 h-8 md:w-9 md:h-9 pointer-events-none"
+            style={{
+              left: `${pos.x}%`,
+              top: `${pos.y}%`,
+              transform: `translate(calc(-50% + ${(index - (markers.length - 1) / 2) * 22}px), -50%)`,
+              zIndex: 2,
+            }}
+          >
+            <img src={src} alt="" className="w-full h-full object-contain" draggable={false} />
+          </div>
+        ))
+      })()}
 
       {/* Cake bombs — positioned inward from the seat using itemIconPositionMap */}
       {cakes.map((cake, index) => {

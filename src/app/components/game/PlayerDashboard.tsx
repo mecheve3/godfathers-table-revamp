@@ -1,13 +1,20 @@
-import type { Player, GangsterType } from "../../features/game/types"
+import type { Player, Position, GangsterType } from "../../features/game/types"
+import { calculatePaymentBreakdown } from "../../features/game/game-logic"
+import { STATIC_ITEM_ICON } from "./BoardPosition"
 
 interface PlayerDashboardProps {
   player: Player
+  board: Position[]
+  /** This player's current live standing (1 = leading) — see computeStandings in game-logic.ts */
+  rank: number
   isCurrentPlayer: boolean
   isSeatingPlayer?: boolean
   seatingGangsterIds?: string[]
   selectedSeatingGangsterId?: string | null
   onSeatingGangsterSelect?: (gangsterId: string) => void
 }
+
+const BUSINESS_TYPES = ["BAR", "GAMBLING_HOUSE", "STRIP_CLUB"] as const
 
 const getGangsterImage = (playerId: string, type: GangsterType) => {
   const teamMap: Record<string, string> = {
@@ -23,6 +30,8 @@ const getGangsterImage = (playerId: string, type: GangsterType) => {
 
 export default function PlayerDashboard({
   player,
+  board,
+  rank,
   isCurrentPlayer,
   isSeatingPlayer = false,
   seatingGangsterIds = [],
@@ -31,18 +40,55 @@ export default function PlayerDashboard({
 }: PlayerDashboardProps) {
   const aliveGangsters = player.gangsters.filter((g) => g.position !== null).length
   const isSeatingMode = seatingGangsterIds.length > 0 || isSeatingPlayer
+  const isEliminated = player.gangsters.length > 0 && aliveGangsters === 0 && !isSeatingMode
+  const { businessCounts } = calculatePaymentBreakdown(player, board)
 
   return (
-    <div className={`border-2 border-zinc-600 rounded-lg p-3 ${isCurrentPlayer ? "ring-2 ring-white" : ""}`}>
+    <div className={`border-2 rounded-lg p-3 ${isCurrentPlayer ? "ring-2 ring-white" : ""}
+      ${isEliminated ? "border-red-900/60 bg-red-950/10" : "border-zinc-600"}`}>
       <div className="flex justify-between items-center mb-2">
-        <h3 className="font-bold text-[#F5AC0E]">{player.name}</h3>
-        <span className="text-[#F5AC0E] font-bold">${player.money.toLocaleString()}</span>
+        <h3 className="font-bold text-[#F5AC0E] flex items-center gap-1.5">
+          {player.name}
+          {isEliminated && (
+            <span className="text-[10px] font-bold uppercase tracking-wide text-red-400 border border-red-900/60 rounded px-1 py-0.5 leading-none">
+              Out
+            </span>
+          )}
+        </h3>
+        <div className="flex items-center gap-2">
+          {!isSeatingMode && <span className="text-xs text-zinc-400 font-mono">#{rank}</span>}
+          <span className="text-[#F5AC0E] font-bold">${player.money.toLocaleString()}</span>
+        </div>
       </div>
       <div className="text-sm text-[#F5AC0E]">
         {isSeatingMode ? (
           <p>To place: {seatingGangsterIds.length}</p>
         ) : (
-          <p>Gangsters: {aliveGangsters}/{player.gangsters.length}</p>
+          <div className="flex items-center justify-between">
+            <p>Gangsters: {aliveGangsters}/{player.gangsters.length}</p>
+            <div className="flex items-center gap-1">
+              {BUSINESS_TYPES.map((type) => {
+                const count = businessCounts[type]
+                const isMonopoly = count >= 2
+                const isLit = count >= 1
+                return (
+                  <div
+                    key={type}
+                    className={`w-5 h-5 rounded-full flex items-center justify-center ${isMonopoly ? "ring-1 ring-yellow-400" : ""}`}
+                    style={isMonopoly ? { filter: "drop-shadow(0 0 3px rgba(250,204,21,0.9))" } : undefined}
+                    title={`${type.replace("_", " ")}: ${count} held${isMonopoly ? " (monopoly)" : ""}`}
+                  >
+                    <img
+                      src={STATIC_ITEM_ICON[type]}
+                      alt={type}
+                      className={`w-full h-full object-contain ${isLit ? "" : "opacity-30 grayscale"}`}
+                      draggable={false}
+                    />
+                  </div>
+                )
+              })}
+            </div>
+          </div>
         )}
         <div className="mt-2 flex flex-wrap gap-1">
           {player.gangsters.map((gangster) => {

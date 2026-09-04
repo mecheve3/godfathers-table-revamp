@@ -2,6 +2,7 @@ import type { Player, Gangster, ActionType, GameState, Card, GamePhase, CakeBomb
 import PlayerDashboard from "./PlayerDashboard"
 import GameLog from "./GameLog"
 import { useLang } from "../../context/LanguageContext"
+import { computeStandings } from "../../features/game/game-logic"
 
 interface ActionPanelProps {
   currentPlayer: Player
@@ -67,6 +68,7 @@ export default function ActionPanel({
   const { t } = useLang()
   const playerColor = getPlayerColor(currentPlayer.id)
   const currentPlayerIndex = gameState.players.findIndex((p) => p.id === currentPlayer.id)
+  const rankByPlayerId = new Map(computeStandings(gameState.players).map(({ player, rank }) => [player.id, rank]))
 
   return (
     <div className={`border-2 ${playerColor} h-full flex flex-col bg-gradient-to-b from-[#3D2314] to-[#2B1710] overflow-hidden`}>
@@ -78,6 +80,8 @@ export default function ActionPanel({
             <PlayerDashboard
               key={player.id}
               player={player}
+              board={gameState.board}
+              rank={rankByPlayerId.get(player.id) ?? index + 1}
               isCurrentPlayer={index === currentPlayerIndex}
               isSeatingPlayer={player.id === seatingCurrentPlayerId}
               seatingGangsterIds={seatingQueue?.[player.id] ?? []}

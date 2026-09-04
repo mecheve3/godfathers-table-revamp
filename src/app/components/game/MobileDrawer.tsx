@@ -3,6 +3,7 @@ import type { Player, GameState, LogEntry } from "../../features/game/types"
 import PlayerDashboard from "./PlayerDashboard"
 import GameLog from "./GameLog"
 import { useLang } from "../../context/LanguageContext"
+import { computeStandings } from "../../features/game/game-logic"
 
 interface MobileDrawerProps {
   onClose: () => void
@@ -29,6 +30,7 @@ export default function MobileDrawer({
 }: MobileDrawerProps) {
   const { t } = useLang()
   const currentPlayerIndex = gameState.players.findIndex((p) => p.id === currentPlayer.id)
+  const rankByPlayerId = new Map(computeStandings(gameState.players).map(({ player, rank }) => [player.id, rank]))
 
   return (
     <>
@@ -83,6 +85,8 @@ export default function MobileDrawer({
               <PlayerDashboard
                 key={player.id}
                 player={player}
+                board={gameState.board}
+                rank={rankByPlayerId.get(player.id) ?? idx + 1}
                 isCurrentPlayer={idx === currentPlayerIndex}
                 isSeatingPlayer={player.id === seatingCurrentPlayerId}
                 seatingGangsterIds={seatingQueue?.[player.id] ?? []}

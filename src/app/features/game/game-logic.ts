@@ -1043,6 +1043,10 @@ export interface PaymentBreakdown {
   subtotal: number
   hasCashRegister: boolean
   total: number
+  /** Raw held-seat counts per business type (0, 1, or 2+) — the same counting used to
+   *  derive bar/casino/stripClub/monopolyBonus above. Exposed so UI (e.g. the monopoly
+   *  tracker) can read the exact numbers behind the payout instead of re-deriving them. */
+  businessCounts: Record<"BAR" | "GAMBLING_HOUSE" | "STRIP_CLUB", number>
 }
 
 /** Compute the full income breakdown for a player this turn */
@@ -1050,12 +1054,12 @@ export const calculatePaymentBreakdown = (player: Player, board: Position[]): Pa
   const godfatherAlive = player.gangsters.some((g) => g.type === "GODFATHER" && g.position !== null && g.status !== "sleeping")
   const godfather = godfatherAlive ? 1000 : 0
 
-  const businessCounts: Record<string, number> = { BAR: 0, GAMBLING_HOUSE: 0, STRIP_CLUB: 0 }
+  const businessCounts: Record<"BAR" | "GAMBLING_HOUSE" | "STRIP_CLUB", number> = { BAR: 0, GAMBLING_HOUSE: 0, STRIP_CLUB: 0 }
   player.gangsters.forEach((gangster) => {
     if (gangster.position !== null && gangster.status !== "sleeping") {
       const position = board.find((pos) => pos.id === gangster.position)
       if (position && position.item && position.item in businessCounts) {
-        businessCounts[position.item as string]++
+        businessCounts[position.item as keyof typeof businessCounts]++
       }
     }
   })
@@ -1078,12 +1082,36 @@ export const calculatePaymentBreakdown = (player: Player, board: Position[]): Pa
 
   const subtotal = godfather + bar + casino + stripClub + monopolyBonus
   const total = hasCashRegister ? subtotal * 2 : subtotal
-  return { godfather, bar, casino, stripClub, monopolyBonus, subtotal, hasCashRegister, total }
+  return { godfather, bar, casino, stripClub, monopolyBonus, subtotal, hasCashRegister, total, businessCounts }
 }
 
 // Calculate payment for a player
 export const calculatePayment = (player: Player, board: Position[]): number =>
   calculatePaymentBreakdown(player, board).total
+
+export interface RankedPlayer {
+  player: Player
+  rank: number
+}
+
+/** Ranks players by money (descending), breaking a tie for 1st place by count of
+ *  gangsters still on the board (descending) — the exact rule the game uses to declare
+ *  a winner (see handleWrapUp / the natural-game-over check in GameBoard.tsx). Both of
+ *  those call this instead of re-implementing the sort, and so does the live in-game
+ *  standings badge, so none of the three can ever disagree with each other. */
+export const computeStandings = (players: Player[]): RankedPlayer[] => {
+  const sorted = [...players].sort((a, b) => b.money - a.money)
+  if (sorted.length > 1 && sorted[0].money === sorted[1].money) {
+    const topMoney = sorted[0].money
+    const tied = sorted.filter((p) => p.money === topMoney)
+    tied.sort((a, b) =>
+      b.gangsters.filter((g) => g.position !== null).length -
+      a.gangsters.filter((g) => g.position !== null).length
+    )
+    sorted.splice(0, tied.length, ...tied)
+  }
+  return sorted.map((player, i) => ({ player, rank: i + 1 }))
+}
 
 // Perform an action and return the new game state
 export const performAction = (gameState: GameState, action: Action): GameState => {

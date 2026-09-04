@@ -7,7 +7,7 @@ import {
   getValidCakesForPassing, getValidDirectionsForPassingCake, getValidCakesForExploding,
   shuffleDeck, isCardPlayable, getValidPillTargets, wakeUpSleepingGangsters,
   seatGangsterOnBoard, createManualSeatingInitialState, createManualSeatingInitialState4,
-  createManualSeatingInitialState5, createManualSeatingInitialState6,
+  createManualSeatingInitialState5, createManualSeatingInitialState6, computeStandings,
 } from "../../features/game/game-logic"
 import type { GameState, Action } from "../../features/game/types"
 import { decideBotFirstPlay, decideBotSecondPlay, getRandomDiscardCard, decideBotSeating } from "../../features/game/botDecisionTree"
@@ -732,15 +732,10 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       }
       setGameOver(true)
       playSFX("bell", 0.8, 0, "flac")
-      const sortedPlayers = [...gameState.players].sort((a, b) => b.money - a.money)
-      if (sortedPlayers.length > 1 && sortedPlayers[0].money === sortedPlayers[1].money) {
-        const tiedPlayers = sortedPlayers.filter((p) => p.money === sortedPlayers[0].money)
-        tiedPlayers.sort((a, b) => b.gangsters.filter((g) => g.position !== null).length - a.gangsters.filter((g) => g.position !== null).length)
-        sortedPlayers.splice(0, tiedPlayers.length, ...tiedPlayers)
-      }
-      const standings = sortedPlayers.map((p, i) => ({ player: p.name, money: p.money, aliveGangsters: p.gangsters.filter((g) => g.position !== null).length, rank: i + 1 }))
+      const ranked = computeStandings(gameState.players)
+      const standings = ranked.map(({ player: p, rank }) => ({ player: p.name, money: p.money, aliveGangsters: p.gangsters.filter((g) => g.position !== null).length, rank }))
       setFinalStandings(standings)
-      const winner = sortedPlayers[0]
+      const winner = ranked[0].player
       addLogEntry({ round: gameState.turn, playerId: winner.id, playerName: winner.name, message: t("log.gameover", { name: winner.name, amount: winner.money.toLocaleString() }), type: "system" })
       const winnerType: "HUMAN" | "CPU" = botPlayerIds.includes(winner.id) ? "CPU" : "HUMAN"
       track("game_finished", { winner_id: winner.id, winner_type: winnerType, final_turn: gameState.turn, player_count: gameState.players.length })
@@ -757,16 +752,11 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
 
   const handleWrapUp = () => {
     playSFX("bell", 0.8, 0, "flac")
-    const sortedPlayers = [...gameState.players].sort((a, b) => b.money - a.money)
-    if (sortedPlayers.length > 1 && sortedPlayers[0].money === sortedPlayers[1].money) {
-      const tiedPlayers = sortedPlayers.filter((p) => p.money === sortedPlayers[0].money)
-      tiedPlayers.sort((a, b) => b.gangsters.filter((g) => g.position !== null).length - a.gangsters.filter((g) => g.position !== null).length)
-      sortedPlayers.splice(0, tiedPlayers.length, ...tiedPlayers)
-    }
-    const standings = sortedPlayers.map((p, i) => ({ player: p.name, money: p.money, aliveGangsters: p.gangsters.filter((g) => g.position !== null).length, rank: i + 1 }))
+    const ranked = computeStandings(gameState.players)
+    const standings = ranked.map(({ player: p, rank }) => ({ player: p.name, money: p.money, aliveGangsters: p.gangsters.filter((g) => g.position !== null).length, rank }))
     setFinalStandings(standings)
     setGameOver(true)
-    const winner = sortedPlayers[0]
+    const winner = ranked[0].player
     addLogEntry({ round: gameState.turn, playerId: winner.id, playerName: winner.name, message: t("log.gameover", { name: winner.name, amount: winner.money.toLocaleString() }), type: "system" })
     const wrapUpWinnerType: "HUMAN" | "CPU" = botPlayerIds.includes(winner.id) ? "CPU" : "HUMAN"
     track("game_finished", { winner_id: winner.id, winner_type: wrapUpWinnerType, final_turn: gameState.turn, player_count: gameState.players.length, via: "wrap_up" })
