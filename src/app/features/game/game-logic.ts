@@ -1,5 +1,5 @@
 import type { GameState, Player, Position, Action, Card, CardType, CakeBomb } from "./types"
-import { DRINK_SEAT_IDS } from "./types"
+import { DRINK_SEAT_IDS, CORNER_SEAT_IDS } from "./types"
 
 // Initial board setup
 const createInitialBoard = (): Position[] => {
@@ -1423,8 +1423,7 @@ export const isCardPlayable = (gameState: GameState, playerId: string, cardId: s
         const isInFrontOfGun = position.item === "GUN"
 
         // Check if not in a corner position
-        const cornerPositions = [2, 3, 14, 15, 17, 18, 29, 30]
-        const isNotCorner = !cornerPositions.includes(position.id)
+        const isNotCorner = !CORNER_SEAT_IDS.includes(position.id)
 
         // Check if there's a valid target in front
         const hasValidTarget = checkGunTarget(gameState, playerId, index)
@@ -1521,8 +1520,7 @@ export const getValidGangstersForCard = (gameState: GameState, playerId: string,
         const isInFrontOfGun = position.item === "GUN"
 
         // Check if not in a corner position
-        const cornerPositions = [2, 3, 14, 15, 17, 18, 29, 30]
-        const isNotCorner = !cornerPositions.includes(position.id)
+        const isNotCorner = !CORNER_SEAT_IDS.includes(position.id)
 
         // Check if there's a valid target in front
         const hasValidTarget = checkGunTarget(gameState, player.id, index)

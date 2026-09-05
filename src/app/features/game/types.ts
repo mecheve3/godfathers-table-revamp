@@ -92,6 +92,9 @@ export type GamePhase =
 // Board positions that have drinks (valid targets for Sleeping Pills)
 export const DRINK_SEAT_IDS: readonly number[] = [5, 6, 8, 9, 14, 20, 21, 25, 29]
 
+// The 8 corner seats of the octagonal table (2 per corner)
+export const CORNER_SEAT_IDS: readonly number[] = [2, 3, 14, 15, 17, 18, 29, 30]
+
 // Cake bomb interface
 export interface CakeBomb {
   id: string

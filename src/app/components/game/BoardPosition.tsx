@@ -73,7 +73,7 @@ export const positionMap: Record<number, { x: number; y: number }> = {
 const itemIconPositionMap: Record<number, { x: number; y: number }> = {
   1: { x: 12.5, y: 50 },
   2: { x: 12.5, y: 35 },
-  3: { x: 13.5, y: 31 },
+  3: { x: 18, y: 27 },
   4: { x: 21.5, y: 31 },
   5: { x: 28, y: 31 },
   6: { x: 34, y: 31 },
@@ -84,11 +84,11 @@ const itemIconPositionMap: Record<number, { x: number; y: number }> = {
   11: { x: 66, y: 31 },
   12: { x: 72, y: 31 },
   13: { x: 78.5, y: 31 },
-  14: { x: 86.5, y: 31 },
+  14: { x: 82, y: 27 },
   15: { x: 87.5, y: 35 },
   16: { x: 87.5, y: 50 },
   17: { x: 87.5, y: 65 },
-  18: { x: 86.5, y: 68 },
+  18: { x: 82, y: 71.5 },
   19: { x: 78.5, y: 68 },
   20: { x: 72, y: 68 },
   21: { x: 66, y: 68 },
@@ -99,10 +99,23 @@ const itemIconPositionMap: Record<number, { x: number; y: number }> = {
   26: { x: 34, y: 68 },
   27: { x: 28, y: 68 },
   28: { x: 21.5, y: 68 },
-  29: { x: 13.5, y: 68 },
+  29: { x: 18, y: 71.5 },
   30: { x: 12.5, y: 65 },
 }
 
+
+// Local tangent angle (degrees) of the table edge at seat `id`, derived from its ring
+// neighbors (seats 1..30 form a closed ring around the octagon, wrapping 1<->30). This
+// naturally gives ~0deg on the long top/bottom edges, ~90deg on the short left/right
+// edges, and a genuine diagonal tilt at each corner seat — used to lay flat markers
+// (e.g. the knife) tangent to the table edge without hand-tuning a rotation per seat.
+const getEdgeTangentAngleDeg = (id: number): number => {
+  const total = Object.keys(positionMap).length
+  const prev = positionMap[id === 1 ? total : id - 1]
+  const next = positionMap[id === total ? 1 : id + 1]
+  if (!prev || !next) return 0
+  return Math.atan2(next.y - prev.y, next.x - prev.x) * (180 / Math.PI)
+}
 
 const getPositionStyle = (positionId: number) => {
   const position = positionMap[positionId]
@@ -152,15 +165,26 @@ export const STATIC_ITEM_ICON: Partial<Record<string, string>> = {
 }
 export const DRINK_GLASS_ICON = "/images/items/glass.png"
 
-/** Marker position: halfway between the seat and the (further-in) cake-bomb spot, so a
- *  static business/weapon/drink marker never lands exactly on top of a placed cake bomb.
- *  Derived from the two existing seat-relative maps rather than hand-placed. */
-export const staticItemPositionMap: Record<number, { x: number; y: number }> = Object.fromEntries(
-  Object.entries(positionMap).map(([id, seat]) => {
-    const inward = itemIconPositionMap[Number(id)] ?? seat
-    return [id, { x: (seat.x + inward.x) / 2, y: (seat.y + inward.y) / 2 }]
-  }),
-)
+// Marker size in cqw, by category — business icons read clearly at 2x, weapons a bit
+// bigger than the baseline; glass and cash-register stay at the original baseline size.
+const MARKER_SIZE_CQW = {
+  BUSINESS: 6.66,
+  WEAPON: 4.0,
+  BASELINE: 3.33,
+} as const
+const BUSINESS_ITEM_TYPES = new Set(["BAR", "GAMBLING_HOUSE", "STRIP_CLUB"])
+const WEAPON_ITEM_TYPES = new Set(["GUN", "KNIFE"])
+const getMarkerSizeCqw = (itemType: string): number =>
+  BUSINESS_ITEM_TYPES.has(itemType) ? MARKER_SIZE_CQW.BUSINESS
+  : WEAPON_ITEM_TYPES.has(itemType) ? MARKER_SIZE_CQW.WEAPON
+  : MARKER_SIZE_CQW.BASELINE
+// Small fixed breathing room between two stacked markers, on top of their own half-widths.
+const MARKER_GAP_CQW = 0.5
+
+/** Marker position: the same inward, on-the-table spot cakes use — a cake placed on the
+ *  same seat sits at the identical point and blinks transparent (see .cake-bomb-blink)
+ *  so whatever marker is underneath stays visible. */
+export const staticItemPositionMap: Record<number, { x: number; y: number }> = itemIconPositionMap
 
 export default function BoardPosition({
   position, gameState, selected, highlighted, onClick, animClass, spriteOverlay, spriteLarge,
@@ -308,25 +332,51 @@ export default function BoardPosition({
       {/* Board markers — business/weapon item + drink glass, each its own positioned image
           per Position.item / DRINK_SEAT_IDS (not baked into the board background art) */}
       {(() => {
-        const markers = [
-          position.item ? STATIC_ITEM_ICON[position.item] : undefined,
-          DRINK_SEAT_IDS.includes(position.id) ? DRINK_GLASS_ICON : undefined,
-        ].filter((src): src is string => !!src)
+        const markers: { src: string; size: number; isKnife: boolean }[] = [
+          position.item && STATIC_ITEM_ICON[position.item]
+            ? { src: STATIC_ITEM_ICON[position.item]!, size: getMarkerSizeCqw(position.item), isKnife: position.item === "KNIFE" }
+            : undefined,
+          DRINK_SEAT_IDS.includes(position.id)
+            ? { src: DRINK_GLASS_ICON, size: MARKER_SIZE_CQW.BASELINE, isKnife: false }
+            : undefined,
+        ].filter((m): m is { src: string; size: number; isKnife: boolean } => !!m)
         if (markers.length === 0) return null
         const pos = staticItemPositionMap[position.id]
         if (!pos) return null
-        return markers.map((src, index) => (
+
+        // Lay markers out left-to-right, centered as a group, spacing each pair by the
+        // sum of their own half-widths plus a small fixed gap — so spacing scales with
+        // each marker's actual rendered size instead of one flat constant.
+        const totalWidth = markers.reduce((sum, m) => sum + m.size, 0) + MARKER_GAP_CQW * (markers.length - 1)
+        let cursor = -totalWidth / 2
+        const offsets = markers.map((m) => {
+          const center = cursor + m.size / 2
+          cursor += m.size + MARKER_GAP_CQW
+          return center
+        })
+
+        const knifeAngleDeg = getEdgeTangentAngleDeg(position.id)
+
+        return markers.map((marker, index) => (
           <div
-            key={src}
-            className="absolute w-[3.33cqw] h-[3.33cqw] pointer-events-none"
+            key={marker.src}
+            className="absolute pointer-events-none"
             style={{
               left: `${pos.x}%`,
               top: `${pos.y}%`,
-              transform: `translate(calc(-50% + ${(index - (markers.length - 1) / 2) * 2.04}cqw), -50%)`,
+              width: `${marker.size}cqw`,
+              height: `${marker.size}cqw`,
+              transform: `translate(calc(-50% + ${offsets[index]}cqw), -50%)`,
               zIndex: 2,
             }}
           >
-            <img src={src} alt="" className="w-full h-full object-contain" draggable={false} />
+            <img
+              src={marker.src}
+              alt=""
+              className="w-full h-full object-contain"
+              style={marker.isKnife ? { transform: `rotate(${knifeAngleDeg}deg)` } : undefined}
+              draggable={false}
+            />
           </div>
         ))
       })()}

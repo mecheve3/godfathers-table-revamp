@@ -1,5 +1,5 @@
 import type { GameState, Action, Position } from "./types"
-import { DRINK_SEAT_IDS } from "./types"
+import { DRINK_SEAT_IDS, CORNER_SEAT_IDS } from "./types"
 import {
   getValidGangstersForCard,
   getValidDisplacementPositions,
@@ -465,7 +465,6 @@ export function getRandomDiscardCard(state: GameState, botId: string): string | 
 // ── Bot seating (manual seating + Police Raid re-seat) ────────────────────────
 
 const SEATING_BUSINESS_ITEMS = ["BAR", "GAMBLING_HOUSE", "STRIP_CLUB"]
-const CORNER_SEAT_IDS = [2, 3, 14, 15, 17, 18, 29, 30]
 
 function scorePlacement(
   gangsterType: string,
