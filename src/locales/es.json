@@ -248,6 +248,7 @@
   "results.subtitle": "La Familia Ha Hablado",
   "results.title": "Resultados finales",
   "results.alive": "{{count}} vivo(s)",
+  "results.kills": "{{count}} eliminado(s)",
   "results.new_game": "Nueva partida",
   "results.restart": "Reiniciar",
   "rank.1": "1°",

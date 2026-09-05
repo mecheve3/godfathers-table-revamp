@@ -54,6 +54,15 @@
   animation: sprite-blink 280ms ease-in-out 3 forwards;
 }
 
+/* ── Drink glass reacting to a Sleeping Pill — synced to the character's sprite-blink ── */
+@keyframes glass-drugged-blink {
+  0%, 100% { opacity: 1;   filter: none; }
+  40%, 60% { opacity: 0.4; filter: drop-shadow(0 0 6px rgba(168, 85, 247, 0.9)) hue-rotate(220deg) saturate(1.6); }
+}
+.glass-drugged-blink {
+  animation: glass-drugged-blink 280ms ease-in-out 3 forwards;
+}
+
 /* ── Eliminated victim ghost — character fades to gray then disappears ───────── */
 @keyframes elimination-victim {
   0%   { opacity: 0.55; filter: grayscale(1); }

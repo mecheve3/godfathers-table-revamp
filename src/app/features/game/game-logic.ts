@@ -697,6 +697,10 @@ export const checkCakeExplosions = (gameState: GameState, playerId: string): Gam
       // Eliminate the gangster
       gangster.position = null
       seat.occupiedBy = null
+      if (player.id !== cake.ownerId) {
+        const owner = newGameState.players.find((p) => p.id === cake.ownerId)
+        if (owner) owner.kills = (owner.kills ?? 0) + 1
+      }
     }
 
     // Remove the exploded cake
@@ -1153,6 +1157,7 @@ export const performAction = (gameState: GameState, action: Action): GameState =
             // Eliminate gangster
             targetGangster.position = null
             targetPosition.occupiedBy = null
+            if (targetPlayer.id !== player.id) player.kills = (player.kills ?? 0) + 1
           }
         }
       }
@@ -1181,6 +1186,7 @@ export const performAction = (gameState: GameState, action: Action): GameState =
             // Eliminate gangster
             targetGangster.position = null
             targetPosition.occupiedBy = null
+            if (targetPlayer.id !== player.id) player.kills = (player.kills ?? 0) + 1
           }
         }
       }
@@ -1253,6 +1259,7 @@ export const performAction = (gameState: GameState, action: Action): GameState =
             g.position = null
             g.status = undefined
             g.sleepingFrom = undefined
+            if (p.id !== player.id) player.kills = (player.kills ?? 0) + 1
           } else {
             // First pill (or repeat from same player) — put to sleep
             g.status = "sleeping"
@@ -1753,6 +1760,10 @@ export const explodeCakeBomb = (gameState: GameState, cakeId: string): GameState
     // Eliminate the gangster
     gangster.position = null
     seat.occupiedBy = null
+    if (player.id !== cake.ownerId) {
+      const owner = newGameState.players.find((p) => p.id === cake.ownerId)
+      if (owner) owner.kills = (owner.kills ?? 0) + 1
+    }
   }
 
   // Remove the exploded cake

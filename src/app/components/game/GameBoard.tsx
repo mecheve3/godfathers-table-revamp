@@ -228,7 +228,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   const [selectedDirection, setSelectedDirection] = useState<"left" | "right" | null>(null)
   const [targetPositionId, setTargetPositionId] = useState<number | null>(null)
   const [gameOver, setGameOver] = useState<boolean>(false)
-  const [finalStandings, setFinalStandings] = useState<Array<{ player: string; money: number; rank: number; aliveGangsters?: number }>>([])
+  const [finalStandings, setFinalStandings] = useState<Array<{ playerId: string; player: string; money: number; rank: number; aliveGangsters?: number; kills: number }>>([])
   const [validGangsters, setValidGangsters] = useState<number[]>([])
   const [validTargets, setValidTargets] = useState<number[]>([])
   const [validCakes, setValidCakes] = useState<string[]>([])
@@ -734,7 +734,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       setGameOver(true)
       playSFX("bell", 0.8, 0, "flac")
       const ranked = computeStandings(gameState.players)
-      const standings = ranked.map(({ player: p, rank }) => ({ player: p.name, money: p.money, aliveGangsters: p.gangsters.filter((g) => g.position !== null).length, rank }))
+      const standings = ranked.map(({ player: p, rank }) => ({ playerId: p.id, player: p.name, money: p.money, aliveGangsters: p.gangsters.filter((g) => g.position !== null).length, kills: p.kills ?? 0, rank }))
       setFinalStandings(standings)
       const winner = ranked[0].player
       addLogEntry({ round: gameState.turn, playerId: winner.id, playerName: winner.name, message: t("log.gameover", { name: winner.name, amount: winner.money.toLocaleString() }), type: "system" })
@@ -754,7 +754,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
   const handleWrapUp = () => {
     playSFX("bell", 0.8, 0, "flac")
     const ranked = computeStandings(gameState.players)
-    const standings = ranked.map(({ player: p, rank }) => ({ player: p.name, money: p.money, aliveGangsters: p.gangsters.filter((g) => g.position !== null).length, rank }))
+    const standings = ranked.map(({ player: p, rank }) => ({ playerId: p.id, player: p.name, money: p.money, aliveGangsters: p.gangsters.filter((g) => g.position !== null).length, kills: p.kills ?? 0, rank }))
     setFinalStandings(standings)
     setGameOver(true)
     const winner = ranked[0].player
@@ -1809,41 +1809,65 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
             {/* Rankings */}
             <div className="flex flex-col gap-2">
               {finalStandings.map((standing, i) => {
-                const playerId = gameState.players.find((p) => p.name === standing.player)?.id ?? ''
-                const color = PLAYER_COLORS[playerId] ?? '#9b7060'
+                const color = PLAYER_COLORS[standing.playerId] ?? '#9b7060'
                 const isWinner = i === 0
+                const team = TEAM_FOR_PLAYER[standing.playerId]
+                const gangsters = gameState.players.find((p) => p.id === standing.playerId)?.gangsters ?? []
                 return (
                   <div
                     key={standing.rank}
-                    className="flex items-center gap-4 px-4 py-3 rounded"
+                    className="flex flex-col gap-2 px-4 py-3 rounded"
                     style={{
                       background: isWinner ? 'rgba(201,168,76,0.12)' : 'rgba(255,255,255,0.03)',
                       border: `1px solid ${isWinner ? '#C9A84C55' : '#3f151522'}`,
                     }}
                   >
-                    <span
-                      className="w-8 text-center text-sm font-serif font-bold uppercase tracking-wide flex-shrink-0"
-                      style={{ color: isWinner ? '#C9A84C' : '#6b4c2a' }}
-                    >
-                      {RANK_LABELS[i] ?? `${i + 1}.`}
-                    </span>
-                    <span
-                      className="flex-1 font-serif uppercase tracking-wider text-base"
-                      style={{ color }}
-                    >
-                      {standing.player}
-                    </span>
-                    {standing.aliveGangsters !== undefined && standing.aliveGangsters > 0 && (
-                      <span className="text-xs font-serif" style={{ color: '#6b4c2a' }}>
-                        {t('results.alive', { count: String(standing.aliveGangsters) })}
+                    <div className="flex items-center gap-4">
+                      <span
+                        className="w-8 text-center text-sm font-serif font-bold uppercase tracking-wide flex-shrink-0"
+                        style={{ color: isWinner ? '#C9A84C' : '#6b4c2a' }}
+                      >
+                        {RANK_LABELS[i] ?? `${i + 1}.`}
                       </span>
-                    )}
-                    <span
-                      className="font-serif font-bold text-base flex-shrink-0"
-                      style={{ color: isWinner ? '#C9A84C' : '#9b7060' }}
-                    >
-                      ${standing.money.toLocaleString()}
-                    </span>
+                      <span
+                        className="flex-1 font-serif uppercase tracking-wider text-base"
+                        style={{ color }}
+                      >
+                        {standing.player}
+                      </span>
+                      {standing.aliveGangsters !== undefined && standing.aliveGangsters > 0 && (
+                        <span className="text-xs font-serif" style={{ color: '#6b4c2a' }}>
+                          {t('results.alive', { count: String(standing.aliveGangsters) })}
+                        </span>
+                      )}
+                      <span
+                        className="font-serif font-bold text-base flex-shrink-0"
+                        style={{ color: isWinner ? '#C9A84C' : '#9b7060' }}
+                      >
+                        ${standing.money.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between pl-12">
+                      <div className="flex items-center gap-1">
+                        {team && gangsters.map((gangster) => (
+                          <div
+                            key={gangster.id}
+                            className={`w-7 h-7 rounded-full overflow-hidden flex-shrink-0 ${gangster.position === null ? 'opacity-30 grayscale' : ''}`}
+                            title={`${gangster.type}${gangster.position === null ? ' (eliminated)' : ''}`}
+                          >
+                            <img
+                              src={`/images/players/${team}/${TYPE_NAME_MAP[gangster.type] ?? 'unknown'}.png`}
+                              alt={gangster.type}
+                              className="w-full h-full object-contain"
+                              draggable={false}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <span className="text-xs font-serif flex-shrink-0" style={{ color: '#6b4c2a' }}>
+                        {t('results.kills', { count: String(standing.kills) })}
+                      </span>
+                    </div>
                   </div>
                 )
               })}

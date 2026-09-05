@@ -73,7 +73,7 @@ export const positionMap: Record<number, { x: number; y: number }> = {
 const itemIconPositionMap: Record<number, { x: number; y: number }> = {
   1: { x: 12.5, y: 50 },
   2: { x: 12.5, y: 35 },
-  3: { x: 18, y: 27 },
+  3: { x: 15.75, y: 29 },
   4: { x: 21.5, y: 31 },
   5: { x: 28, y: 31 },
   6: { x: 34, y: 31 },
@@ -84,11 +84,11 @@ const itemIconPositionMap: Record<number, { x: number; y: number }> = {
   11: { x: 66, y: 31 },
   12: { x: 72, y: 31 },
   13: { x: 78.5, y: 31 },
-  14: { x: 82, y: 27 },
+  14: { x: 84.25, y: 29 },
   15: { x: 87.5, y: 35 },
   16: { x: 87.5, y: 50 },
   17: { x: 87.5, y: 65 },
-  18: { x: 82, y: 71.5 },
+  18: { x: 84.25, y: 69.75 },
   19: { x: 78.5, y: 68 },
   20: { x: 72, y: 68 },
   21: { x: 66, y: 68 },
@@ -99,7 +99,7 @@ const itemIconPositionMap: Record<number, { x: number; y: number }> = {
   26: { x: 34, y: 68 },
   27: { x: 28, y: 68 },
   28: { x: 21.5, y: 68 },
-  29: { x: 18, y: 71.5 },
+  29: { x: 15.75, y: 69.75 },
   30: { x: 12.5, y: 65 },
 }
 
@@ -168,18 +168,31 @@ export const DRINK_GLASS_ICON = "/images/items/glass.png"
 // Marker size in cqw, by category — business icons read clearly at 2x, weapons a bit
 // bigger than the baseline; glass and cash-register stay at the original baseline size.
 const MARKER_SIZE_CQW = {
-  BUSINESS: 6.66,
+  BUSINESS: 5.0,
   WEAPON: 4.0,
   BASELINE: 3.33,
 } as const
-const BUSINESS_ITEM_TYPES = new Set(["BAR", "GAMBLING_HOUSE", "STRIP_CLUB"])
+// Cash Register sits in the same size bucket as the business icons (Bar/Casino/Strip Club).
+const BUSINESS_ITEM_TYPES = new Set(["BAR", "GAMBLING_HOUSE", "STRIP_CLUB", "CASH_REGISTER"])
 const WEAPON_ITEM_TYPES = new Set(["GUN", "KNIFE"])
 const getMarkerSizeCqw = (itemType: string): number =>
   BUSINESS_ITEM_TYPES.has(itemType) ? MARKER_SIZE_CQW.BUSINESS
   : WEAPON_ITEM_TYPES.has(itemType) ? MARKER_SIZE_CQW.WEAPON
   : MARKER_SIZE_CQW.BASELINE
 // Small fixed breathing room between two stacked markers, on top of their own half-widths.
-const MARKER_GAP_CQW = 0.5
+const MARKER_GAP_CQW = 0.2
+
+// Manual per-seat correction for gun markers only — these don't follow a general rule.
+const GUN_ROTATION_OVERRIDES_DEG: Record<number, number> = {
+  13: 90,
+  28: -90,
+  5: 90,
+  9: 90,
+  21: -90,
+  25: -90,
+}
+// Horizontal mirror only (no rotation) for the gun at these seats.
+const GUN_MIRROR_X_SEAT_IDS = new Set([16])
 
 /** Marker position: the same inward, on-the-table spot cakes use — a cake placed on the
  *  same seat sits at the identical point and blinks transparent (see .cake-bomb-blink)
@@ -332,14 +345,32 @@ export default function BoardPosition({
       {/* Board markers — business/weapon item + drink glass, each its own positioned image
           per Position.item / DRINK_SEAT_IDS (not baked into the board background art) */}
       {(() => {
-        const markers: { src: string; size: number; isKnife: boolean }[] = [
+        // itemType is null for the glass marker, so both the weapon-rotation logic and
+        // the "borrowed weapon in use" filter below can branch on the real item type.
+        type Marker = { src: string; size: number; itemType: string | null }
+        const allMarkers = [
           position.item && STATIC_ITEM_ICON[position.item]
-            ? { src: STATIC_ITEM_ICON[position.item]!, size: getMarkerSizeCqw(position.item), isKnife: position.item === "KNIFE" }
+            ? { src: STATIC_ITEM_ICON[position.item]!, size: getMarkerSizeCqw(position.item), itemType: position.item } as Marker
             : undefined,
           DRINK_SEAT_IDS.includes(position.id)
-            ? { src: DRINK_GLASS_ICON, size: MARKER_SIZE_CQW.BASELINE, isKnife: false }
+            ? { src: DRINK_GLASS_ICON, size: MARKER_SIZE_CQW.BASELINE, itemType: null } as Marker
             : undefined,
-        ].filter((m): m is { src: string; size: number; isKnife: boolean } => !!m)
+        ].filter((m): m is Marker => !!m)
+
+        // A Gunman shooting or a Bladeslinger stabbing uses their own innate ability, not
+        // the table item, so the marker stays. Any other type "borrows" the table gun/knife
+        // for the action, so it visually disappears off the table while the pose plays.
+        const isInnateWeaponUse =
+          (poseOverride?.variant === 2 && gangsterDetails?.type === "GUNMAN") ||
+          (poseOverride?.variant === 3 && gangsterDetails?.type === "BLADESLINGER")
+        const isBorrowedWeaponInUse =
+          !isInnateWeaponUse &&
+          ((poseOverride?.variant === 2 && position.item === "GUN") ||
+            (poseOverride?.variant === 3 && position.item === "KNIFE"))
+        const markers = isBorrowedWeaponInUse
+          ? allMarkers.filter((m) => m.itemType !== position.item)
+          : allMarkers
+
         if (markers.length === 0) return null
         const pos = staticItemPositionMap[position.id]
         if (!pos) return null
@@ -355,30 +386,43 @@ export default function BoardPosition({
           return center
         })
 
-        const knifeAngleDeg = getEdgeTangentAngleDeg(position.id)
+        const pillJustUsedHere = !!spriteOverlay?.includes("pills")
 
-        return markers.map((marker, index) => (
-          <div
-            key={marker.src}
-            className="absolute pointer-events-none"
-            style={{
-              left: `${pos.x}%`,
-              top: `${pos.y}%`,
-              width: `${marker.size}cqw`,
-              height: `${marker.size}cqw`,
-              transform: `translate(calc(-50% + ${offsets[index]}cqw), -50%)`,
-              zIndex: 2,
-            }}
-          >
-            <img
-              src={marker.src}
-              alt=""
-              className="w-full h-full object-contain"
-              style={marker.isKnife ? { transform: `rotate(${knifeAngleDeg}deg)` } : undefined}
-              draggable={false}
-            />
-          </div>
-        ))
+        return markers.map((marker, index) => {
+          let imgTransform: string | undefined
+          if (marker.itemType === "KNIFE") {
+            imgTransform = `rotate(${getEdgeTangentAngleDeg(position.id) - 90}deg)`
+          } else if (marker.itemType === "GUN") {
+            if (GUN_MIRROR_X_SEAT_IDS.has(position.id)) {
+              imgTransform = "scaleX(-1)"
+            } else if (GUN_ROTATION_OVERRIDES_DEG[position.id] !== undefined) {
+              imgTransform = `rotate(${GUN_ROTATION_OVERRIDES_DEG[position.id]}deg)`
+            }
+          }
+          const isGlass = marker.itemType === null
+          return (
+            <div
+              key={marker.src}
+              className="absolute pointer-events-none"
+              style={{
+                left: `${pos.x}%`,
+                top: `${pos.y}%`,
+                width: `${marker.size}cqw`,
+                height: `${marker.size}cqw`,
+                transform: `translate(calc(-50% + ${offsets[index]}cqw), -50%)`,
+                zIndex: 2,
+              }}
+            >
+              <img
+                src={marker.src}
+                alt=""
+                className={`w-full h-full object-contain ${isGlass && pillJustUsedHere ? "glass-drugged-blink" : ""}`}
+                style={imgTransform ? { transform: imgTransform } : undefined}
+                draggable={false}
+              />
+            </div>
+          )
+        })
       })()}
 
       {/* Cake bombs — positioned inward from the seat using itemIconPositionMap */}

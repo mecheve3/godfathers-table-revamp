@@ -248,6 +248,7 @@
   "results.subtitle": "The Family Has Spoken",
   "results.title": "Final Results",
   "results.alive": "{{count}} alive",
+  "results.kills": "{{count}} kills",
   "results.new_game": "New Game",
   "results.restart": "Restart",
   "rank.1": "1st",

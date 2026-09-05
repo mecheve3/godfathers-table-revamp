@@ -19,6 +19,8 @@ export interface Player {
   money: number
   gangsters: Gangster[]
   hand: Card[]
+  /** Opposing gangsters this player has eliminated (Gun, Knife, cake, or a fatal pill). Undefined == 0. */
+  kills?: number
 }
 
 // Gangster type
