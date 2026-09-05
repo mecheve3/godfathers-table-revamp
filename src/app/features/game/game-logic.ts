@@ -644,6 +644,14 @@ export const passCakeBomb = (gameState: GameState, cakeId: string, direction: "l
   return newGameState
 }
 
+// `turn` is really a round counter: it only advances when control passes back to (or before)
+// fromPlayerIndex, i.e. a full lap of the table completed. Every hand-off that moves control
+// from one player to the next — a normal turn end, a bot turn, and a Police Raid's re-seating
+// hand-off alike — must go through this so roundPlaced-based timing (cake explosions) stays
+// correct regardless of whether a raid happened in between.
+export const advanceRoundCounter = (currentTurn: number, fromPlayerIndex: number, nextPlayerIndex: number): number =>
+  nextPlayerIndex <= fromPlayerIndex ? currentTurn + 1 : currentTurn
+
 // Check for cake explosions at the start of a player's turn
 export const checkCakeExplosions = (gameState: GameState, playerId: string): GameState => {
   const newGameState = JSON.parse(JSON.stringify(gameState)) as GameState

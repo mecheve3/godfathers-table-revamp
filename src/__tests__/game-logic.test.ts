@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { calculatePaymentBreakdown, computeStandings } from '../app/features/game/game-logic'
-import type { Player, Position } from '../app/features/game/types'
+import { calculatePaymentBreakdown, computeStandings, advanceRoundCounter, placeCakeBomb, checkCakeExplosions } from '../app/features/game/game-logic'
+import type { GameState, Player, Position } from '../app/features/game/types'
 
 function makePosition(overrides: Partial<Position> & { id: number }): Position {
   return {
@@ -16,6 +16,26 @@ function makePosition(overrides: Partial<Position> & { id: number }): Position {
 
 function makePlayer(overrides: Partial<Player> & { id: string }): Player {
   return { name: overrides.id, money: 0, gangsters: [], hand: [], ...overrides }
+}
+
+function makeGameState(overrides: Partial<GameState> = {}): GameState {
+  const board: Position[] = [
+    makePosition({ id: 1 }),
+    makePosition({ id: 2 }),
+    makePosition({ id: 3 }),
+  ]
+  return {
+    players: [makePlayer({ id: 'player1' }), makePlayer({ id: 'player2' })],
+    board,
+    bankMoney: 0,
+    turn: 1,
+    deck: [],
+    discardPile: [],
+    currentPhase: 'SELECT_CARD',
+    cakes: [],
+    removedCards: [],
+    ...overrides,
+  }
 }
 
 describe('computeStandings', () => {
@@ -116,5 +136,81 @@ describe('calculatePaymentBreakdown business counts', () => {
     const { businessCounts, total } = calculatePaymentBreakdown(player, board)
     expect(businessCounts.BAR).toBe(0)
     expect(total).toBe(0)
+  })
+})
+
+describe('advanceRoundCounter', () => {
+  it('does not advance the round when the next player has not wrapped past the current one', () => {
+    expect(advanceRoundCounter(1, 0, 1)).toBe(1)
+  })
+
+  it('advances the round when control wraps back to (or before) the current player', () => {
+    expect(advanceRoundCounter(1, 1, 0)).toBe(2)
+    expect(advanceRoundCounter(3, 2, 2)).toBe(4)
+  })
+})
+
+describe('cake timing across a Police Raid re-seat (regression)', () => {
+  // Reproduces a bug where a cake placed just before a Police Raid waited an extra
+  // round to explode: the raid's re-seating hand-off skipped the same "did a lap
+  // complete" round-increment that every normal turn end performs, leaving `turn`
+  // one lap behind and delaying every roundPlaced comparison from then on.
+  it("explodes on the owner's very next turn even when a Police Raid is played in between", () => {
+    let state = makeGameState({ turn: 1 })
+    // Player 0 places a cake on their own turn (turn 1).
+    state = placeCakeBomb(state, 'player1', 1)
+    expect(state.cakes[0].roundPlaced).toBe(1)
+
+    // Turn passes to player 1 (index 1) — no lap completed yet.
+    state = { ...state, turn: advanceRoundCounter(state.turn, 0, 1) }
+    expect(state.turn).toBe(1)
+
+    // Player 1 plays Police Raid instead of a normal action. The re-seating flow
+    // hands control back to player 0 (index 0) — this IS a completed lap (0 <= 1),
+    // so the round counter must advance here exactly like a normal turn end would.
+    state = { ...state, turn: advanceRoundCounter(state.turn, 1, 0) }
+    expect(state.turn).toBe(2)
+
+    // It's player 0's very next turn — the cake placed on turn 1 should explode now,
+    // not wait for an additional round.
+    state = checkCakeExplosions(state, 'player1')
+    expect(state.cakes).toHaveLength(0)
+  })
+
+  it('does not explode early when the owner plays the Police Raid themself before their own next turn', () => {
+    let state = makeGameState({ turn: 1 })
+    state = placeCakeBomb(state, 'player1', 1)
+
+    // Player 0 immediately plays Police Raid on the same turn they placed the cake.
+    // Re-seating hands control to player 1 (index 1) — not a completed lap (1 > 0).
+    state = { ...state, turn: advanceRoundCounter(state.turn, 0, 1) }
+    expect(state.turn).toBe(1)
+
+    // Cake must not explode on player 1's turn — it was placed this same round.
+    state = checkCakeExplosions(state, 'player2')
+    expect(state.cakes).toHaveLength(1)
+
+    // Play wraps back to player 0 — now a lap has completed and the cake should go off.
+    state = { ...state, turn: advanceRoundCounter(state.turn, 1, 0) }
+    expect(state.turn).toBe(2)
+    state = checkCakeExplosions(state, 'player1')
+    expect(state.cakes).toHaveLength(0)
+  })
+
+  it('a cake placed the same turn a Police Raid is played by someone else explodes on the correct subsequent turn, not immediately', () => {
+    let state = makeGameState({ turn: 3 })
+    // Player 0 places a cake on turn 3.
+    state = placeCakeBomb(state, 'player1', 1)
+    expect(state.cakes[0].roundPlaced).toBe(3)
+
+    // Player 1 plays Police Raid right after, on the same round. Re-seating hands
+    // control back to player 0 (index 0) — a completed lap (0 <= 1) — so the round
+    // counter advances to 4, same as if a normal turn had ended.
+    state = { ...state, turn: advanceRoundCounter(state.turn, 1, 0) }
+    expect(state.turn).toBe(4)
+
+    // Cake explodes now — on the very next time it's player 0's turn — not before.
+    state = checkCakeExplosions(state, 'player1')
+    expect(state.cakes).toHaveLength(0)
   })
 })

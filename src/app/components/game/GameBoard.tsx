@@ -8,6 +8,7 @@ import {
   shuffleDeck, isCardPlayable, getValidPillTargets, wakeUpSleepingGangsters,
   seatGangsterOnBoard, createManualSeatingInitialState, createManualSeatingInitialState4,
   createManualSeatingInitialState5, createManualSeatingInitialState6, computeStandings,
+  advanceRoundCounter,
 } from "../../features/game/game-logic"
 import type { GameState, Action } from "../../features/game/types"
 import { decideBotFirstPlay, decideBotSecondPlay, getRandomDiscardCard, decideBotSeating } from "../../features/game/botDecisionTree"
@@ -820,7 +821,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     finalState = dealCards(finalState)
     const nextPlayerIndex = getNextActivePlayerIndex(playerIndex, finalState.players)
     if (!policeRaidPlayed) {
-      if (nextPlayerIndex <= playerIndex) finalState.turn += 1
+      finalState.turn = advanceRoundCounter(finalState.turn, playerIndex, nextPlayerIndex)
       finalState.currentPhase = "SELECT_CARD"
     }
     // When POLICE_RAID was played, preserve "SEATING_SELECT_GANGSTER" phase so
@@ -1055,6 +1056,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
         } else {
           const raidingPlayerIdx = currentState.players.findIndex((p) => p.id === seatingPlayerOrder[0])
           const nextIdx = getNextActivePlayerIndex(raidingPlayerIdx, currentState.players)
+          currentState.turn = advanceRoundCounter(currentState.turn, raidingPlayerIdx, nextIdx)
           currentState.currentPhase = "SELECT_CARD"; setSeatingQueue({}); setSeatingPlayerOrder([]); setCurrentPlayerIndex(nextIdx); setGameState(currentState)
         }
         return
@@ -1618,6 +1620,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
       } else {
         const raidingPlayerIdx = newGameState.players.findIndex((p) => p.id === seatingPlayerOrder[0])
         const nextIdx = getNextActivePlayerIndex(raidingPlayerIdx, newGameState.players)
+        newGameState.turn = advanceRoundCounter(newGameState.turn, raidingPlayerIdx, nextIdx)
         newGameState.currentPhase = "SELECT_CARD"; setSeatingQueue({}); setSeatingPlayerOrder([]); setCurrentPlayerIndex(nextIdx); setGameState(newGameState)
         onTurnEnd?.({ gameState: newGameState, currentPlayerIndex: nextIdx, seatingPlayerOrder: [], seatingCurrentIdx: 0, seatingQueue: {}, actions: [] })
       }
@@ -1672,7 +1675,7 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
     }
 
     setCurrentPlayerIndex(nextPlayerIndex)
-    if (nextPlayerIndex <= currentPlayerIndex) newGameState.turn += 1
+    newGameState.turn = advanceRoundCounter(newGameState.turn, currentPlayerIndex, nextPlayerIndex)
     newGameState.currentPhase = "SELECT_CARD"; newGameState.selectedCakeId = undefined
     setSelectedCardId(null); setSelectedGangsterIndex(null); setSelectedDirection(null); setTargetPositionId(null)
     setValidGangsters([]); setValidTargets([]); setValidCakes([]); setValidDirections([])
