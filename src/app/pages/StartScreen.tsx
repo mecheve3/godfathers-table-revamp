@@ -32,7 +32,16 @@ export default function StartScreen() {
     <div
       className="relative min-h-screen w-full flex flex-col items-center justify-center overflow-hidden select-none"
       style={{
-        background: 'radial-gradient(125% 95% at 50% -10%, #3d2415 0%, #1f120b 44%, #100a06 100%)',
+        // The photo renders on top; the old gradient stays as a layer behind it (shows
+        // briefly before the image loads, and backstops the edges if `cover` ever crops
+        // the 1536x1024 art oddly), plus a flat backgroundColor as the ultimate fallback.
+        backgroundColor: '#1f120b',
+        // .webp is a ~15x smaller re-encode of the same art (Home.png, kept on disk as
+        // the source) — same visual result, much faster first paint.
+        backgroundImage: "url('/images/Home.webp'), radial-gradient(125% 95% at 50% -10%, #3d2415 0%, #1f120b 44%, #100a06 100%)",
+        backgroundSize: 'cover, cover',
+        backgroundPosition: 'center, center',
+        backgroundRepeat: 'no-repeat, no-repeat',
       }}
     >
 
@@ -94,31 +103,6 @@ export default function StartScreen() {
           zIndex: 3,
         }}
       />
-
-      {/* Poker table felt arc — bottom-anchored, curves up from floor */}
-      <div
-        className="pointer-events-none absolute"
-        style={{
-          bottom: 0,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: '140vw',
-          height: '38%',
-          background: 'radial-gradient(ellipse 100% 100% at 50% 100%, #1c4830 0%, #14372a 50%, #0c2218 100%)',
-          borderRadius: '50% 50% 0 0 / 100% 100% 0 0',
-          zIndex: 4,
-        }}
-      >
-        {/* Brass rim line along the curve */}
-        <div style={{
-          position: 'absolute',
-          top: -1, left: 0, right: 0,
-          height: 2,
-          background: 'linear-gradient(90deg, transparent 4%, #9a7730 15%, #c79a4a 35%, #e9cd86 50%, #c79a4a 65%, #9a7730 85%, transparent 96%)',
-          borderRadius: '50% 50% 0 0 / 100% 100% 0 0',
-          boxShadow: '0 0 14px rgba(199,154,74,0.55), 0 -1px 6px rgba(233,205,134,0.25)',
-        }} />
-      </div>
 
       {/* ── Content stack ─────────────────────────────────────────────── */}
       <div className="relative flex flex-col items-center px-6 pb-4" style={{ zIndex: 10 }}>
