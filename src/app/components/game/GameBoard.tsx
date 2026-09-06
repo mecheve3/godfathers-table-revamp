@@ -912,6 +912,21 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
                   for (const seatId of eliminatedSeats) snapshotElimination(seatId, preState, 900 + 1800)
                   setTimeout(() => triggerSeatSprite(eliminatedSeats, ELIMINATION_SPRITE, 1800), 900)
                 }
+              } else if (spritePath && cardType === "SLEEPING_PILLS") {
+                // Pop the pill sprite on every target (sleep or overdose alike), then layer
+                // the elimination sprite on top for whichever target the pill actually killed —
+                // mirrors the EXPLODE_CAKE pattern above, and the human-turn path in handleConfirmAction.
+                triggerSeatSprite(summary.seatIds, spritePath, 900)
+                const preState = i === 0 ? latestState : (stateAfterFirstAction ?? latestState)
+                const postState = stateAfterFirstAction && i === 0 ? stateAfterFirstAction : newState
+                const eliminatedSeats = summary.seatIds.filter(
+                  (id) => preState.board.find((p) => p.id === id)?.occupiedBy != null &&
+                           postState.board.find((p) => p.id === id)?.occupiedBy === null
+                )
+                if (eliminatedSeats.length > 0) {
+                  for (const seatId of eliminatedSeats) snapshotElimination(seatId, preState, 900 + 1800)
+                  setTimeout(() => triggerSeatSprite(eliminatedSeats, ELIMINATION_SPRITE, 1800), 900)
+                }
               } else if (spritePath) {
                 triggerSeatSprite(summary.seatIds, spritePath, 900)
               }
