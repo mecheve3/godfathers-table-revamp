@@ -180,7 +180,25 @@ const getMarkerSizeCqw = (itemType: string): number =>
   : WEAPON_ITEM_TYPES.has(itemType) ? MARKER_SIZE_CQW.WEAPON
   : MARKER_SIZE_CQW.BASELINE
 // Small fixed breathing room between two stacked markers, on top of their own half-widths.
-const MARKER_GAP_CQW = 0.2
+// Negative because each marker's own art (gun/glass) has generous transparent padding
+// inside its square bounding box, so the boxes need to overlap for the actual painted
+// pixels to read as "almost touching" rather than the icons looking far apart.
+const MARKER_GAP_CQW = -1.4
+
+// knife.png draws the blade lying at a diagonal within its own square canvas (tip to
+// handle axis measured via PCA over the opaque pixels), not flat/horizontal like a
+// 0deg-baseline asset would — so this offset cancels that art's own built-in tilt before
+// the edge-tangent rotation is applied. Re-measure this if the art changes again.
+const KNIFE_ART_INTRINSIC_ANGLE_DEG = 26.6
+// Manual per-seat correction for knife markers only, added on top of the edge-tangent
+// formula above — these seats needed an extra nudge that isn't part of the general rule.
+const KNIFE_ROTATION_OVERRIDES_DEG: Record<number, number> = {
+  3: 45,
+  15: 45,
+  11: 45,
+  17: -45,
+  24: -45,
+}
 
 // Manual per-seat correction for gun markers only — these don't follow a general rule.
 const GUN_ROTATION_OVERRIDES_DEG: Record<number, number> = {
@@ -357,6 +375,23 @@ export default function BoardPosition({
             : undefined,
         ].filter((m): m is Marker => !!m)
 
+        if (allMarkers.length === 0) return null
+        const pos = staticItemPositionMap[position.id]
+        if (!pos) return null
+
+        // Lay markers out left-to-right, centered as a group, spacing each pair by the
+        // sum of their own half-widths plus a small fixed gap — so spacing scales with
+        // each marker's actual rendered size instead of one flat constant. Offsets are
+        // computed from the FULL set (item + glass) so that temporarily hiding one below
+        // (borrowed-weapon-in-use) never reflows the other's position.
+        const totalWidth = allMarkers.reduce((sum, m) => sum + m.size, 0) + MARKER_GAP_CQW * (allMarkers.length - 1)
+        let cursor = -totalWidth / 2
+        const offsets = allMarkers.map((m) => {
+          const center = cursor + m.size / 2
+          cursor += m.size + MARKER_GAP_CQW
+          return center
+        })
+
         // A Gunman shooting or a Bladeslinger stabbing uses their own innate ability, not
         // the table item, so the marker stays. Any other type "borrows" the table gun/knife
         // for the action, so it visually disappears off the table while the pose plays.
@@ -367,31 +402,15 @@ export default function BoardPosition({
           !isInnateWeaponUse &&
           ((poseOverride?.variant === 2 && position.item === "GUN") ||
             (poseOverride?.variant === 3 && position.item === "KNIFE"))
-        const markers = isBorrowedWeaponInUse
-          ? allMarkers.filter((m) => m.itemType !== position.item)
-          : allMarkers
-
-        if (markers.length === 0) return null
-        const pos = staticItemPositionMap[position.id]
-        if (!pos) return null
-
-        // Lay markers out left-to-right, centered as a group, spacing each pair by the
-        // sum of their own half-widths plus a small fixed gap — so spacing scales with
-        // each marker's actual rendered size instead of one flat constant.
-        const totalWidth = markers.reduce((sum, m) => sum + m.size, 0) + MARKER_GAP_CQW * (markers.length - 1)
-        let cursor = -totalWidth / 2
-        const offsets = markers.map((m) => {
-          const center = cursor + m.size / 2
-          cursor += m.size + MARKER_GAP_CQW
-          return center
-        })
 
         const pillJustUsedHere = !!spriteOverlay?.includes("pills")
 
-        return markers.map((marker, index) => {
+        return allMarkers.map((marker, index) => {
+          if (isBorrowedWeaponInUse && marker.itemType === position.item) return null
           let imgTransform: string | undefined
           if (marker.itemType === "KNIFE") {
-            imgTransform = `rotate(${getEdgeTangentAngleDeg(position.id) - 90}deg)`
+            const knifeOverride = KNIFE_ROTATION_OVERRIDES_DEG[position.id] ?? 0
+            imgTransform = `rotate(${getEdgeTangentAngleDeg(position.id) - 90 - KNIFE_ART_INTRINSIC_ANGLE_DEG + knifeOverride}deg)`
           } else if (marker.itemType === "GUN") {
             if (GUN_MIRROR_X_SEAT_IDS.has(position.id)) {
               imgTransform = "scaleX(-1)"

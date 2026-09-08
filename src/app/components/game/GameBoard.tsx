@@ -1556,7 +1556,11 @@ export default function GameBoard({ playerCount, seatingType = "automatic", game
 
     const hasDisplacementCard = hasCardOfType(newGameState.players[currentPlayerIndex], "DISPLACEMENT")
     const hasEmptySeats = newGameState.board.some((p) => p.occupiedBy === null)
-    if (hasDisplacementCard && hasEmptySeats) {
+    // A player whose last gangster was just wiped out by their own first action (e.g. an
+    // Explode Cake blast catching their own seat) has nothing left to displace — don't
+    // offer the second action.
+    const hasGangsterToMove = newGameState.players[currentPlayerIndex].gangsters.some((g) => g.position !== null)
+    if (hasDisplacementCard && hasEmptySeats && hasGangsterToMove) {
       firstActionRef.current = currentSyncAction
       newGameState.currentPhase = "SECOND_DISPLACEMENT"; setGameState(newGameState)
     } else {
