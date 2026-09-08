@@ -11,6 +11,7 @@ import { useMatch } from '../features/match/MatchContext'
 import { createRoom } from '../features/multiplayer/api'
 import { useLang } from '../context/LanguageContext'
 import { containsBadWord } from '../features/game/badwords'
+import { FEATURES } from '../features/auth/flags'
 
 type Step = 'players' | 'seating' | 'name'
 
@@ -22,6 +23,12 @@ export default function CreateMatch() {
   const { config, setConfig } = useMatch()
 
   const isQuickMatch = config?.mode === 'quick'
+
+  // Multiplayer is gated off — any non-quick mode (including a missing/stale one)
+  // must not fall through to the Create Match branch below.
+  useEffect(() => {
+    if (!FEATURES.MULTIPLAYER_ENABLED && !isQuickMatch) navigate('/menu', { replace: true })
+  }, [isQuickMatch, navigate])
 
   const { t } = useLang()
   const [step, setStep] = useState<Step>('players')

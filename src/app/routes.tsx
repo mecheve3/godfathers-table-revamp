@@ -17,6 +17,9 @@ import EmailConfirmation from './pages/EmailConfirmation'
 /** Redirect to /menu when auth is disabled. */
 const authGuard = () => (!FEATURES.AUTH_ENABLED ? redirect('/menu') : null)
 
+/** Redirect to /menu when multiplayer is disabled. */
+const multiplayerGuard = () => (!FEATURES.MULTIPLAYER_ENABLED ? redirect('/menu') : null)
+
 export const router = createBrowserRouter([
   // ── Entry ──────────────────────────────────────────────────────
   { path: '/', Component: Landing },
@@ -29,7 +32,7 @@ export const router = createBrowserRouter([
   // ── Active match flow ──────────────────────────────────────────
   { path: '/menu', Component: StartScreen },
   { path: '/create', Component: CreateMatch },
-  { path: '/join', Component: JoinMatch },
-  { path: '/lobby', Component: MatchLobby },
+  { path: '/join', loader: multiplayerGuard, Component: JoinMatch },
+  { path: '/lobby', loader: multiplayerGuard, Component: MatchLobby },
   { path: '/game', Component: Game },
 ])

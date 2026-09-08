@@ -6,6 +6,7 @@ import { useAudio } from '../features/game/AudioContext'
 import { useLang } from '../context/LanguageContext'
 import { useMatch } from '../features/match/MatchContext'
 import { HowToPlayModal } from '../components/game/HowToPlayModal'
+import { FEATURES } from '../features/auth/flags'
 
 export default function StartScreen() {
   const navigate = useNavigate()
@@ -182,54 +183,56 @@ export default function StartScreen() {
           </button>
         </motion.div>
 
-        {/* Ghost pair — Create Match & Join Match */}
-        <motion.div
-          {...fadeUp(1.42)}
-          className="flex gap-3"
-          style={{ width: 'min(420px, 90vw)' }}
-        >
-          {([
-            { label: t('menu.create'), handler: handleCreateMatch },
-            { label: t('menu.join'),   handler: handleJoinMatch   },
-          ] as const).map(({ label, handler }) => (
-            <button
-              key={label}
-              onClick={handler}
-              style={{
-                flex: 1,
-                padding: '12px 16px',
-                // Near-opaque (not fully transparent) so the felt-arc rim line behind this
-                // block can never show through — its position is viewport-height-dependent
-                // and isn't guaranteed to clear the button row on short screens.
-                background: 'rgba(15,8,2,0.92)',
-                color: '#c79a4a',
-                border: '1px solid rgba(199,154,74,0.35)',
-                borderRadius: '6px',
-                fontFamily: "'Cinzel', serif",
-                fontWeight: 600,
-                fontSize: '0.78rem',
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                cursor: 'pointer',
-                transition: 'border-color 0.18s ease, color 0.18s ease, background 0.18s ease',
-              }}
-              onMouseEnter={e => {
-                const el = e.currentTarget
-                el.style.borderColor = 'rgba(199,154,74,0.7)'
-                el.style.color = '#e9cd86'
-                el.style.background = 'rgba(35,22,10,0.95)'
-              }}
-              onMouseLeave={e => {
-                const el = e.currentTarget
-                el.style.borderColor = 'rgba(199,154,74,0.35)'
-                el.style.color = '#c79a4a'
-                el.style.background = 'rgba(15,8,2,0.92)'
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </motion.div>
+        {/* Ghost pair — Create Match & Join Match (hidden while multiplayer is gated off) */}
+        {FEATURES.MULTIPLAYER_ENABLED && (
+          <motion.div
+            {...fadeUp(1.42)}
+            className="flex gap-3"
+            style={{ width: 'min(420px, 90vw)' }}
+          >
+            {([
+              { label: t('menu.create'), handler: handleCreateMatch },
+              { label: t('menu.join'),   handler: handleJoinMatch   },
+            ] as const).map(({ label, handler }) => (
+              <button
+                key={label}
+                onClick={handler}
+                style={{
+                  flex: 1,
+                  padding: '12px 16px',
+                  // Near-opaque (not fully transparent) so the felt-arc rim line behind this
+                  // block can never show through — its position is viewport-height-dependent
+                  // and isn't guaranteed to clear the button row on short screens.
+                  background: 'rgba(15,8,2,0.92)',
+                  color: '#c79a4a',
+                  border: '1px solid rgba(199,154,74,0.35)',
+                  borderRadius: '6px',
+                  fontFamily: "'Cinzel', serif",
+                  fontWeight: 600,
+                  fontSize: '0.78rem',
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  transition: 'border-color 0.18s ease, color 0.18s ease, background 0.18s ease',
+                }}
+                onMouseEnter={e => {
+                  const el = e.currentTarget
+                  el.style.borderColor = 'rgba(199,154,74,0.7)'
+                  el.style.color = '#e9cd86'
+                  el.style.background = 'rgba(35,22,10,0.95)'
+                }}
+                onMouseLeave={e => {
+                  const el = e.currentTarget
+                  el.style.borderColor = 'rgba(199,154,74,0.35)'
+                  el.style.color = '#c79a4a'
+                  el.style.background = 'rgba(15,8,2,0.92)'
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </motion.div>
+        )}
       </div>
 
       {/* ── Fixed chrome ──────────────────────────────────────────────── */}
