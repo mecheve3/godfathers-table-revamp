@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { calculatePaymentBreakdown, computeStandings, advanceRoundCounter, placeCakeBomb, checkCakeExplosions } from '../app/features/game/game-logic'
+import { calculatePaymentBreakdown, computeStandings, advanceRoundCounter, placeCakeBomb, checkCakeExplosions, isCardPlayable } from '../app/features/game/game-logic'
 import type { GameState, Player, Position } from '../app/features/game/types'
 
 function makePosition(overrides: Partial<Position> & { id: number }): Position {
@@ -212,5 +212,52 @@ describe('cake timing across a Police Raid re-seat (regression)', () => {
     // Cake explodes now — on the very next time it's player 0's turn — not before.
     state = checkCakeExplosions(state, 'player1')
     expect(state.cakes).toHaveLength(0)
+  })
+})
+
+describe('isCardPlayable DISPLACEMENT with a sleeping gangster (regression)', () => {
+  // A lone sleeping gangster still satisfies "position !== null" so, without also
+  // excluding sleeping status, Displacement kept showing as playable even though there
+  // was nobody awake to actually move — the only card that missed this check (Knife and
+  // Gun both already excluded sleeping gangsters).
+  it('is not playable when the player\'s only seated gangster is asleep', () => {
+    const state = makeGameState({
+      board: [
+        makePosition({ id: 1, occupiedBy: { playerId: 'player1', gangsterId: 'g1' } }),
+        makePosition({ id: 2 }), // empty seat, so displacement would otherwise have a target
+        makePosition({ id: 3 }),
+      ],
+      players: [
+        makePlayer({
+          id: 'player1',
+          gangsters: [{ id: 'g1', type: 'THUG', position: 1, status: 'sleeping' }],
+          hand: [{ id: 'c1', type: 'DISPLACEMENT' }],
+        }),
+        makePlayer({ id: 'player2' }),
+      ],
+    })
+    expect(isCardPlayable(state, 'player1', 'c1')).toBe(false)
+  })
+
+  it('is playable when at least one gangster is awake, even alongside a sleeping one', () => {
+    const state = makeGameState({
+      board: [
+        makePosition({ id: 1, occupiedBy: { playerId: 'player1', gangsterId: 'g1' } }),
+        makePosition({ id: 2, occupiedBy: { playerId: 'player1', gangsterId: 'g2' } }),
+        makePosition({ id: 3 }), // empty seat
+      ],
+      players: [
+        makePlayer({
+          id: 'player1',
+          gangsters: [
+            { id: 'g1', type: 'THUG', position: 1, status: 'sleeping' },
+            { id: 'g2', type: 'THUG', position: 2 },
+          ],
+          hand: [{ id: 'c1', type: 'DISPLACEMENT' }],
+        }),
+        makePlayer({ id: 'player2' }),
+      ],
+    })
+    expect(isCardPlayable(state, 'player1', 'c1')).toBe(true)
   })
 })

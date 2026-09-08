@@ -1442,8 +1442,8 @@ export const isCardPlayable = (gameState: GameState, playerId: string, cardId: s
       // Check if there are any empty positions on the board
       const hasEmptyPositions = gameState.board.some((position) => position.occupiedBy === null)
 
-      // Check if player has any gangsters that can be moved
-      const hasGangsters = player.gangsters.some((gangster) => gangster.position !== null)
+      // Check if player has any gangsters that can be moved (seated and awake)
+      const hasGangsters = player.gangsters.some((gangster) => gangster.position !== null && gangster.status !== "sleeping")
 
       return hasEmptyPositions && hasGangsters
     }
